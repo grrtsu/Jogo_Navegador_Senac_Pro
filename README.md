@@ -8,6 +8,8 @@ Sem servidor, sem banco de dados, sem login, sem bibliotecas externas.
 
 1. Abra o arquivo **`index.html`** no navegador (duplo clique já funciona, não precisa de servidor).
 2. Clique em **JOGAR**.
+3. Na primeira corrida, um **tutorial jogável** ensina os movimentos: o tempo desacelera e para até você
+   fazer a ação certa. Para jogar o tutorial de novo: Configurações → Tutorial → **REFAZER**.
 
 | Ação | Computador | Celular |
 |---|---|---|
@@ -45,16 +47,17 @@ ganha +100 pontos por obstáculo.
 - 7 telas: Menu, Como jogar, Gameplay, Pausa, Game Over, Recordes e Configurações.
 - Recordes, estatísticas, histórico e configurações salvos no navegador (localStorage).
 - Sons e música gerados com a Web Audio API (nenhum arquivo de áudio).
-- Configurações: volume dos efeitos, música, redução de animações, qualidade gráfica, ajuda e apagar dados.
+- **Tutorial jogável** nos primeiros 250 m da primeira corrida: trocar de faixa, pular, deslizar, pegar cores e usar o SHIFT.
+- Configurações: volume dos efeitos, música, redução de animações, qualidade gráfica, ajuda, refazer o tutorial e apagar dados.
 - Responsivo: desktop, notebook, tablet e celular (em pé e deitado).
 
 ## Testes automáticos
 
 Abra **`testes.html`** (ou `index.html?testes=1`, ou `index.html#testes`). A página roda os **18 testes obrigatórios do
-roteiro** + 5 extras + 3 das novas mecânicas (contramão, carros com rampa e Jetpack), clicando nos botões de verdade, e mostra o resultado. Seus recordes são
-guardados antes e restaurados depois.
+roteiro** + 5 extras (E) + 3 das novas mecânicas (N: contramão, carros com rampa e Jetpack) + 2 do tutorial (T),
+28 no total, clicando nos botões de verdade, e mostra o resultado. Seus recordes são guardados antes e restaurados depois.
 
-Dica para apresentar: `index.html?debug=1` mostra FPS, velocidade e as caixas de colisão.
+Dica para apresentar: `index.html?debug=1` (ou `index.html#debug`) mostra FPS, velocidade e as caixas de colisão.
 
 ## Estrutura
 
@@ -71,7 +74,7 @@ zyro/
 │   ├── main.js           ← inicia tudo e roda o laço principal
 │   ├── core/             ← utils, storage (localStorage), audio, input (teclado/toque)
 │   ├── game/             ← regras: player, lanes, obstacles, collision, collectibles,
-│   │                        score, shift, progression, game
+│   │                        score, shift, progression, tutorial, game
 │   ├── render/           ← desenho: camera (projeção 3D), scenery, sprites, vehicles (carros voadores), character, effects, renderer
 │   └── ui/               ← art (SVGs), hud, screens (menus)
 ├── testes/               ← bot.js (jogador automático) e testes.js
@@ -81,6 +84,16 @@ zyro/
 A lógica do jogo (`js/game`) não desenha nada: ela só simula e avisa por eventos (`ZYRO.Bus`).
 O desenho (`js/render`) e a interface (`js/ui`) escutam esses eventos. Por isso dá para testar as
 regras sem a tela.
+
+## Lendo o código
+
+O código foi escrito para ser estudado: nomes por extenso (`verticalSpeed`, `meetAt`, `laneProgress`) e,
+no topo de cada arquivo, um comentário explicando a técnica usada e o porquê das decisões. Uma ordem boa de
+leitura: `config.js` → `main.js` → `game/game.js` → `game/player.js` → `render/camera.js` → `game/obstacles.js`.
+
+Unidades em todo o projeto: distância em metros, tempo em segundos, velocidade em m/s (as "medidas" são só
+para mostrar ao jogador). `d` é a posição de algo na pista (metros desde a largada) e `z` é quantos metros
+à frente do jogador aquilo está agora.
 
 ## Como ajustar
 

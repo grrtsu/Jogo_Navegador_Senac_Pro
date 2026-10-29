@@ -1,29 +1,47 @@
 /* =========================================================
    ZYRO — sprites.js  (Obstáculos, ZYRO CORES e power-ups)
-   Texturas são desenhadas uma vez em canvas fora da tela
-   (mais rápido) e depois aplicadas nas faces em perspectiva.
+
+   Duas técnicas principais:
+
+   1. TEXTURAS PRÉ-DESENHADAS (canvas fora da tela)
+      Listras, ícones e degradês são caros de desenhar. Em vez
+      de redesenhar a cada quadro, init() desenha cada textura
+      UMA vez num canvas invisível; depois só "carimbamos" a
+      imagem pronta com drawImage (muito mais rápido).
+
+   2. CAIXAS EM PERSPECTIVA (box)
+      Cada obstáculo é feito de caixas: frente + topo + lateral.
+      Projetamos os cantos com a câmera e pintamos as faces
+      que a câmera consegue ver.
+
+   Nos init: "c" é o contexto 2D do canvas da textura, e
+   "w"/"h" o tamanho dela em px. "S" é atalho para this.
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
 ZYRO.Sprites = {
   tex: {}, glows: {},
 
+  // cria um canvas invisível de w × h e desenha nele com a função draw (é o "molde" de cada textura)
   canvas(w, h, draw) {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     draw(c.getContext('2d'), w, h);
     return c;
   },
+  // retângulo de cantos arredondados (rounded rect) com raio r
   rr(ctx, x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   },
+  // listras diagonais (de alerta) a cada "step" px
   stripes(ctx, w, h, color, alpha, step, width) {
     ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width;
     for (let i = -h; i < w + h; i += step) { ctx.beginPath(); ctx.moveTo(i, h); ctx.lineTo(i + h, 0); ctx.stroke(); }
     ctx.restore();
   },
+  // ícones como caminhos SVG (o mesmo desenho do index.html), desenhados no canvas com Path2D
   ICONS: {
     ima: 'M6 3v8a6 6 0 0012 0V3 M6 3h4v8a2 2 0 004 0V3h4 M6 7h4M14 7h4',
     escudo: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z M9 12l2 2 4-4',
@@ -37,20 +55,22 @@ ZYRO.Sprites = {
     ctx.stroke(new Path2D(this.ICONS[name])); ctx.restore();
   },
 
-  // brilho radial colorido (reaproveitado)
+  // brilho radial de uma cor. Guardado em this.glows: cada cor só é desenhada uma vez (cache).
   glow(color) {
     if (!this.glows[color]) {
       this.glows[color] = this.canvas(128, 128, (c) => {
         const g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
-        g.addColorStop(0, ZYRO.U.rgba(color, 0.9)); g.addColorStop(0.25, ZYRO.U.rgba(color, 0.45)); g.addColorStop(1, ZYRO.U.rgba(color, 0));
+        g.addColorStop(0, ZYRO.Utils.rgba(color, 0.9)); g.addColorStop(0.25, ZYRO.Utils.rgba(color, 0.45)); g.addColorStop(1, ZYRO.Utils.rgba(color, 0));
         c.fillStyle = g; c.fillRect(0, 0, 128, 128);
       });
     }
     return this.glows[color];
   },
 
+  // Desenha todas as texturas uma vez, quando o jogo carrega.
   init() {
     const S = this, C = ZYRO.CONFIG.COLORS;
+    // barreira vermelha: listras brancas, borda clara e um "X" no meio
     S.tex.red = S.canvas(256, 240, (c, w, h) => {
       S.rr(c, 6, 6, w - 12, h - 12, 22); c.fillStyle = '#FF4D6D'; c.fill();
       c.save(); c.clip(); S.stripes(c, w, h, '#fff', 0.28, 34, 13);
@@ -62,23 +82,27 @@ ZYRO.Sprites = {
       c.beginPath(); c.moveTo(102, 92); c.lineTo(154, 144); c.moveTo(154, 92); c.lineTo(102, 144); c.stroke();
       c.fillStyle = C.amarelo; [[38, 34], [218, 34]].forEach(([x, y]) => { c.beginPath(); c.arc(x, y, 9, 0, 7); c.fill(); });
     });
+    // barreira baixa: laranja com listras amarelas
     S.tex.low = S.canvas(320, 64, (c, w, h) => {
       S.rr(c, 4, 4, w - 8, h - 8, 12); c.fillStyle = C.laranja; c.fill();
       c.save(); c.clip(); S.stripes(c, w, h, C.amarelo, 0.95, 38, 15); c.restore();
       S.rr(c, 4, 4, w - 8, h - 8, 12); c.lineWidth = 4; c.strokeStyle = 'rgba(255,255,255,.85)'; c.stroke();
     });
+    // barreira elevada: rosa com setas para baixo (dica: deslize)
     S.tex.high = S.canvas(320, 80, (c, w, h) => {
       S.rr(c, 4, 4, w - 8, h - 8, 14); c.fillStyle = C.rosa; c.fill();
       c.lineWidth = 4; c.strokeStyle = 'rgba(255,255,255,.85)'; c.stroke();
       c.strokeStyle = C.escuro; c.lineWidth = 9; c.lineCap = 'round'; c.lineJoin = 'round';
       [80, 160, 240].forEach(x => { c.beginPath(); c.moveTo(x - 20, 28); c.lineTo(x, 50); c.lineTo(x + 20, 28); c.stroke(); });
     });
+    // campo de energia translúcido embaixo da barreira elevada
     S.tex.field = S.canvas(320, 140, (c, w, h) => {
       const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,79,191,.55)'); g.addColorStop(1, 'rgba(255,79,191,.12)');
       c.fillStyle = g; c.fillRect(0, 0, w, h);
       c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = 2;
       for (let y = 14; y < h; y += 22) { c.beginPath(); c.moveTo(0, y); for (let x = 0; x <= w; x += 20) c.lineTo(x, y + Math.sin(x / 30 + y) * 4); c.stroke(); }
     });
+    // bloco energético: grade azul com um raio no centro
     S.tex.block = S.canvas(240, 240, (c, w, h) => {
       c.fillStyle = '#223463'; c.fillRect(0, 0, w, h);
       c.strokeStyle = 'rgba(0,217,255,.45)'; c.lineWidth = 3;
@@ -89,6 +113,7 @@ ZYRO.Sprites = {
       c.fillStyle = C.escuro; c.beginPath(); c.moveTo(127, 92); c.lineTo(104, 126); c.lineTo(122, 126); c.lineTo(114, 150); c.lineTo(138, 114); c.lineTo(120, 114); c.closePath(); c.fill();
       c.strokeStyle = C.azul; c.lineWidth = 8; c.strokeRect(4, 4, w - 8, h - 8);
     });
+    // portão de energia (as faixas fechadas)
     S.tex.gate = S.canvas(240, 320, (c, w, h) => {
       const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,79,191,.75)'); g.addColorStop(1, 'rgba(255,79,191,.35)');
       c.fillStyle = g; c.fillRect(0, 0, w, h);
@@ -97,6 +122,7 @@ ZYRO.Sprites = {
       c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6);
       S.icon(c, 'raio', w / 2, h / 2, 90, 'rgba(255,255,255,.75)', 2);
     });
+    // setas que flutuam sobre os obstáculos: verde para cima (pule) e rosa para baixo (deslize)
     S.tex.chevUp = S.canvas(120, 120, (c) => {
       c.strokeStyle = C.verde; c.lineWidth = 14; c.lineCap = 'round'; c.lineJoin = 'round';
       c.shadowColor = C.verde; c.shadowBlur = 14;
@@ -130,7 +156,7 @@ ZYRO.Sprites = {
     S.caps = {};
     for (const [k, T] of Object.entries(ZYRO.POWERUP_TYPES)) {
       S.caps[k] = S.canvas(160, 160, (c) => {
-        const g = c.createRadialGradient(64, 60, 4, 80, 80, 70); g.addColorStop(0, 'rgba(255,255,255,.55)'); g.addColorStop(0.4, ZYRO.U.rgba(T.cor, 0.45)); g.addColorStop(1, ZYRO.U.rgba(T.cor, 0.75));
+        const g = c.createRadialGradient(64, 60, 4, 80, 80, 70); g.addColorStop(0, 'rgba(255,255,255,.55)'); g.addColorStop(0.4, ZYRO.Utils.rgba(T.cor, 0.45)); g.addColorStop(1, ZYRO.Utils.rgba(T.cor, 0.75));
         c.fillStyle = g; c.beginPath(); c.arc(80, 80, 66, 0, 7); c.fill();
         c.lineWidth = 8; c.strokeStyle = T.cor; c.stroke();
         c.lineWidth = 5; c.strokeStyle = 'rgba(255,255,255,.7)'; c.beginPath(); c.arc(80, 80, 52, 3.6, 4.6); c.stroke();
@@ -139,59 +165,68 @@ ZYRO.Sprites = {
     }
   },
 
-  // ---------- caixa 3D em perspectiva ----------
-  box(ctx, cam, x0, x1, y0, y1, z0, z1, st) {
+  // ---------- Caixa 3D em perspectiva ----------
+  // Uma caixa de x0..x1 (lado), y0..y1 (altura) e z0..z1 (profundidade), com o estilo de cada face:
+  // style = { front | tex (textura da frente), top, side, edge, frontEdge, edgeW }
+  // Só pintamos as faces que a câmera VÊ: o topo se a câmera está acima dele; a lateral esquerda
+  // se a câmera está à esquerda da caixa, e vice-versa. A frente é desenhada por último (fica por cima).
+  box(ctx, cam, x0, x1, y0, y1, z0, z1, style) {
     const P = (x, y, z) => cam.px(x, y, z);
-    const poly = (pts, fill) => {
-      ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    const polygon = (points, fill) => {
+      ctx.beginPath(); ctx.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
       ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
-      if (st.edge) { ctx.strokeStyle = st.edge; ctx.lineWidth = st.edgeW || 1.5; ctx.stroke(); }
+      if (style.edge) { ctx.strokeStyle = style.edge; ctx.lineWidth = style.edgeW || 1.5; ctx.stroke(); }
     };
-    if (z1 - z0 > 0.02) {
-      if (st.top && cam.y > y1) poly([P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1)], st.top);
-      if (st.side && cam.x < x0) poly([P(x0, y0, z0), P(x0, y1, z0), P(x0, y1, z1), P(x0, y0, z1)], st.side);
-      if (st.side && cam.x > x1) poly([P(x1, y0, z0), P(x1, y1, z0), P(x1, y1, z1), P(x1, y0, z1)], st.side);
+    if (z1 - z0 > 0.02) {   // caixa "chapada" (sem profundidade) não tem topo nem lateral
+      if (style.top && cam.y > y1) polygon([P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1)], style.top);
+      if (style.side && cam.x < x0) polygon([P(x0, y0, z0), P(x0, y1, z0), P(x0, y1, z1), P(x0, y0, z1)], style.side);
+      if (style.side && cam.x > x1) polygon([P(x1, y0, z0), P(x1, y1, z0), P(x1, y1, z1), P(x1, y0, z1)], style.side);
     }
-    const a = P(x0, y1, z0), b = P(x1, y0, z0);
-    if (st.tex) ctx.drawImage(st.tex, a[0], a[1], b[0] - a[0], b[1] - a[1]);
-    else if (st.front) { ctx.fillStyle = st.front; ctx.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]); }
-    if (st.frontEdge) { ctx.strokeStyle = st.frontEdge; ctx.lineWidth = st.edgeW || 2; ctx.strokeRect(a[0], a[1], b[0] - a[0], b[1] - a[1]); }
-    return { a, b };
+    // a frente é um retângulo de verdade (está toda à mesma distância): cantos superior esquerdo e inferior direito
+    const topLeft = P(x0, y1, z0), bottomRight = P(x1, y0, z0);
+    const width = bottomRight[0] - topLeft[0], height = bottomRight[1] - topLeft[1];
+    if (style.tex) ctx.drawImage(style.tex, topLeft[0], topLeft[1], width, height);
+    else if (style.front) { ctx.fillStyle = style.front; ctx.fillRect(topLeft[0], topLeft[1], width, height); }
+    if (style.frontEdge) { ctx.strokeStyle = style.frontEdge; ctx.lineWidth = style.edgeW || 2; ctx.strokeRect(topLeft[0], topLeft[1], width, height); }
+    return { a: topLeft, b: bottomRight };
   },
 
+  // sombra: um retângulo escuro deitado no chão (y ≈ 0)
   shadow(ctx, cam, x0, x1, z0, z1, alpha = 0.28) {
     const pts = [cam.px(x0, 0.01, z0), cam.px(x1, 0.01, z0), cam.px(x1, 0.01, z1), cam.px(x0, 0.01, z1)];
     ctx.beginPath(); ctx.moveTo(...pts[0]); for (let i = 1; i < 4; i++) ctx.lineTo(...pts[i]); ctx.closePath();
     ctx.fillStyle = `rgba(5,8,25,${alpha})`; ctx.fill();
   },
 
-  // sprite "em pé" virado para a câmera (hologramas, setas)
-  billboard(ctx, cam, img, x, y, z, wM, hM, alpha = 1) {
-    const p = cam.project(x, y, z); if (!p) return;
-    const w = wM * p.s, h = hM * p.s;
-    ctx.globalAlpha = alpha; ctx.drawImage(img, p.x - w / 2, p.y - h, w, h); ctx.globalAlpha = 1;
+  // "Billboard": imagem plana sempre virada para a câmera (setas, hologramas).
+  // widthMeters/heightMeters = tamanho no mundo; a escala da projeção converte para pixels.
+  billboard(ctx, cam, image, x, y, z, widthMeters, heightMeters, alpha = 1) {
+    const point = cam.project(x, y, z); if (!point) return;
+    const width = widthMeters * point.s, height = heightMeters * point.s;
+    ctx.globalAlpha = alpha; ctx.drawImage(image, point.x - width / 2, point.y - height, width, height); ctx.globalAlpha = 1;
   },
 
-  // ---------- obstáculos ----------
+  // ---------- Obstáculos (cada um é uma montagem de caixas) ----------
+  // z0 = distância da frente do obstáculo até o jogador · t = tempo (para as animações)
   obstacle(ctx, cam, o, z0, t) {
-    const S = this, LW = ZYRO.CONFIG.LANE_W, z1 = z0 + o.len, x = o.lane * LW;
-    const pulse = 0.65 + Math.sin(t * 6 + o.d) * 0.25;
+    const S = this, LW = ZYRO.CONFIG.LANE_WIDTH, z1 = z0 + o.len, x = o.lane * LW;
+    const pulse = 0.65 + Math.sin(t * 6 + o.d) * 0.25;   // brilho pulsante das setas (o + o.d desencontra os pulsos)
     switch (o.type) {
-      case 'R':
+      case 'R':   // barreira vermelha: dois pés + painel com textura
         S.shadow(ctx, cam, x - 1.15, x + 1.15, z0 - 0.2, z1 + 0.6);
         S.box(ctx, cam, x - 0.95, x - 0.75, 0, 0.25, z0 + 0.05, z1, { front: '#223463', top: '#344A80', side: '#18264D' });
         S.box(ctx, cam, x + 0.75, x + 0.95, 0, 0.25, z0 + 0.05, z1, { front: '#223463', top: '#344A80', side: '#18264D' });
         S.box(ctx, cam, x - 1.0, x + 1.0, 0.18, 1.9, z0, z1, { tex: S.tex.red, top: '#E8506A', side: '#B02A45' });
         break;
-      case 'L':
+      case 'L':   // barreira baixa: dois postes + faixa laranja + seta "pule"
         S.shadow(ctx, cam, x - 1.15, x + 1.15, z0 - 0.1, z1 + 0.5, 0.22);
         S.box(ctx, cam, x - 1.0, x - 0.86, 0, 0.6, z0 + 0.1, z1, { front: '#344A80', top: '#4B5DA8', side: '#223463' });
         S.box(ctx, cam, x + 0.86, x + 1.0, 0, 0.6, z0 + 0.1, z1, { front: '#344A80', top: '#4B5DA8', side: '#223463' });
         S.box(ctx, cam, x - 1.08, x + 1.08, 0.55, 0.95, z0, z1, { tex: S.tex.low, top: '#FFC36B', side: '#D9772A' });
         S.billboard(ctx, cam, S.tex.chevUp, x, 1.25 + Math.sin(t * 5) * 0.08, z0, 0.9, 0.9, pulse);
         break;
-      case 'H':
+      case 'H':   // barreira elevada: pórtico roxo + painel rosa no alto + seta "deslize" no chão
         S.shadow(ctx, cam, x - 1.2, x + 1.2, z0 - 0.1, z1 + 0.5, 0.2);
         S.box(ctx, cam, x - 1.12, x - 0.9, 0, 3.2, z0, z1, { front: '#7955FF', top: '#9C83FF', side: '#5A44D6' });
         S.box(ctx, cam, x + 0.9, x + 1.12, 0, 3.2, z0, z1, { front: '#7955FF', top: '#9C83FF', side: '#5A44D6' });
@@ -200,14 +235,14 @@ ZYRO.Sprites = {
         S.box(ctx, cam, x - 1.0, x + 1.0, 1.0, 1.6, z0, z1, { tex: S.tex.high, top: '#FF7ED1', side: '#D93A9E' });
         S.billboard(ctx, cam, S.tex.chevDown, x, 0.15 + Math.sin(t * 5) * 0.06, z0 - 0.2, 0.75, 0.75, pulse);
         break;
-      case 'B':
+      case 'B':   // bloco energético: um cubo
         S.shadow(ctx, cam, x - 1.25, x + 1.25, z0 - 0.2, z1 + 0.8, 0.3);
         S.box(ctx, cam, x - 1.05, x + 1.05, 0, 2.2, z0, z1, { tex: S.tex.block, top: '#344A80', side: '#18264D', edge: 'rgba(0,217,255,.8)', edgeW: 2 });
         break;
-      case 'T': case 'A':
+      case 'T': case 'A':   // carros na contramão: desenhados em vehicles.js
         ZYRO.Vehicles.oncoming(ctx, cam, o, z0, t);
         break;
-      case 'G': {
+      case 'G': {   // portão: 3 faixas, campo de energia nas fechadas, seta verde na aberta, luzes no alto
         S.shadow(ctx, cam, -3.8, 3.8, z0 - 0.2, z1 + 0.6, 0.18);
         for (const l of [-1, 0, 1]) {
           if (l === o.open) {
@@ -231,28 +266,28 @@ ZYRO.Sprites = {
     }
   },
 
-  // ---------- coletáveis ----------
-  core(ctx, cam, c, z, t) {
-    const bob = Math.sin(t * 3 + c.d * 0.7) * 0.1;
-    const p = cam.project(c.x, c.y + bob, z); if (!p) return;
-    const parts = c.super ? this.coreBlue : this.coreGold;
-    const size = (c.super ? 0.95 : 0.72) * p.s;
-    const g = this.glow(c.super ? '#00D9FF' : '#FFD447');
-    ctx.drawImage(g, p.x - size * 1.1, p.y - size * 1.1, size * 2.2, size * 2.2);
-    if (c.y > 0.3 && c.y < 4 && !c.roof) {
-      const sh = cam.project(c.x, 0.01, z);
-      if (sh) { ctx.fillStyle = 'rgba(5,8,25,.25)'; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, size * 0.35, size * 0.1, 0, 0, 7); ctx.fill(); }
+  // ---------- Coletáveis ----------
+  core(ctx, cam, core, z, t) {
+    const bob = Math.sin(t * 3 + core.d * 0.7) * 0.1;            // flutua para cima e para baixo
+    const point = cam.project(core.x, core.y + bob, z); if (!point) return;
+    const parts = core.super ? this.coreBlue : this.coreGold;
+    const size = (core.super ? 0.95 : 0.72) * point.s;
+    ctx.drawImage(this.glow(core.super ? '#00D9FF' : '#FFD447'), point.x - size * 1.1, point.y - size * 1.1, size * 2.2, size * 2.2);
+    if (core.y > 0.3 && core.y < 4 && !core.roof) {                // sombrinha no chão (ajuda a perceber a altura)
+      const shadow = cam.project(core.x, 0.01, z);
+      if (shadow) { ctx.fillStyle = 'rgba(5,8,25,.25)'; ctx.beginPath(); ctx.ellipse(shadow.x, shadow.y, size * 0.35, size * 0.1, 0, 0, 7); ctx.fill(); }
     }
-    ctx.drawImage(parts.ring, p.x - size * 0.75, p.y - size * 0.75, size * 1.5, size * 1.5);
-    const spin = Math.cos(t * 4 + c.d * 0.3);
-    const gw = size * 0.6 * Math.max(0.12, Math.abs(spin)), gh = size * 0.98;
-    ctx.drawImage(parts.gem, p.x - gw / 2, p.y - gh / 2, gw, gh);
+    ctx.drawImage(parts.ring, point.x - size * 0.75, point.y - size * 0.75, size * 1.5, size * 1.5);
+    // "Girar" sem 3D: a largura do losango segue |cos(t)|. Largo → fino → largo parece uma moeda girando.
+    const spin = Math.cos(t * 4 + core.d * 0.3);
+    const gemWidth = size * 0.6 * Math.max(0.12, Math.abs(spin)), gemHeight = size * 0.98;
+    ctx.drawImage(parts.gem, point.x - gemWidth / 2, point.y - gemHeight / 2, gemWidth, gemHeight);
   },
 
-  powerup(ctx, cam, u, z, t) {
-    const p = cam.project(u.x, u.y + Math.sin(t * 2.5 + u.d) * 0.15, z); if (!p) return;
-    const col = ZYRO.POWERUP_TYPES[u.type].cor, size = 1.15 * p.s;
-    ctx.drawImage(this.glow(col), p.x - size * 1.3, p.y - size * 1.3, size * 2.6, size * 2.6);
-    ctx.drawImage(this.caps[u.type], p.x - size / 2, p.y - size / 2, size, size);
+  powerup(ctx, cam, item, z, t) {
+    const point = cam.project(item.x, item.y + Math.sin(t * 2.5 + item.d) * 0.15, z); if (!point) return;
+    const color = ZYRO.POWERUP_TYPES[item.type].cor, size = 1.15 * point.s;
+    ctx.drawImage(this.glow(color), point.x - size * 1.3, point.y - size * 1.3, size * 2.6, size * 2.6);
+    ctx.drawImage(this.caps[item.type], point.x - size / 2, point.y - size / 2, size, size);
   }
 };

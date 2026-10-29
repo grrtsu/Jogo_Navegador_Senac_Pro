@@ -4,6 +4,9 @@
      do jogador. Lá longe ele voa alto e desce para a faixa.
    • Estacionados: vans flutuantes de teto plano (plataformas),
      com lanternas vermelhas e, às vezes, rampa amarela na frente.
+
+   Usa as mesmas ferramentas do sprites.js: texturas feitas uma
+   vez no init() e caixas em perspectiva (ZYRO.Sprites.box).
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
@@ -51,28 +54,33 @@ ZYRO.Vehicles = {
     }));
   },
 
-  // altura extra dos carros na contramão quando ainda estão longe (vêm descendo)
-  altitude(z) { return ZYRO.U.clamp((z - 45) * 0.07, 0, 7); },
+  // Altura extra dos carros na contramão enquanto estão longe: acima de 45 m eles voam alto e vão descendo
+  // até a faixa. É só visual (a colisão usa a altura normal), mas mostra de onde o carro está vindo.
+  altitude(z) { return ZYRO.Utils.clamp((z - 45) * 0.07, 0, 7); },
 
-  poly(ctx, pts, fill, stroke, lw = 2) {
-    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  // polígono a partir de uma lista de pontos [x, y] já projetados
+  poly(ctx, points, fill, stroke, lw = 2) {
+    ctx.beginPath(); ctx.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
     ctx.closePath();
     if (fill) { ctx.fillStyle = fill; ctx.fill(); }
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
   },
 
+  // brilho achatado embaixo do veículo (luz dos propulsores refletida)
   underGlow(ctx, cam, x, y, z, w, color) {
     const p = cam.project(x, y, z); if (!p) return;
     const r = w * p.s;
     ctx.save(); ctx.globalAlpha *= 0.8; ctx.drawImage(ZYRO.Sprites.glow(color), p.x - r, p.y - r * 0.3, r * 2, r * 0.6); ctx.restore();
   },
 
-  // ---------- carro na contramão ----------
+  // ---------- Carro na contramão ----------
+  // Montado com 2 caixas: carroceria (com a textura da frente) e cabine (para-brisa).
+  // base = altura de baixo da carroceria: o carro alto (A) flutua a 1 m, para dar para deslizar por baixo.
   oncoming(ctx, cam, o, z0, t) {
-    const S = ZYRO.Sprites, LW = ZYRO.CONFIG.LANE_W, x = o.lane * LW, len = o.len;
-    const alt = this.altitude(z0), base = (o.type === 'A' ? 1.0 : 0.25) + alt;
-    if (alt < 1.5) S.shadow(ctx, cam, x - 1.1, x + 1.1, z0, z0 + len, 0.26 * (1 - alt / 1.5));
+    const S = ZYRO.Sprites, LW = ZYRO.CONFIG.LANE_WIDTH, x = o.lane * LW, len = o.len;
+    const extraHeight = this.altitude(z0), base = (o.type === 'A' ? 1.0 : 0.25) + extraHeight;
+    if (extraHeight < 1.5) S.shadow(ctx, cam, x - 1.1, x + 1.1, z0, z0 + len, 0.26 * (1 - extraHeight / 1.5));
     // rastro de velocidade
     ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 2;
     for (const sx of [-0.9, 0.9]) {
@@ -81,7 +89,7 @@ ZYRO.Vehicles = {
     }
     this.underGlow(ctx, cam, x, base - 0.05, z0 + len * 0.4, 1.4, o.type === 'A' ? '#FF4FBF' : '#00D9FF');
     const high = o.type === 'A';
-    if (high && alt < 0.5) S.billboard(ctx, cam, S.tex.chevDown, x, 0.1 + Math.sin(t * 6) * 0.05, z0 - 0.3, 0.8, 0.8, 0.85);
+    if (high && extraHeight < 0.5) S.billboard(ctx, cam, S.tex.chevDown, x, 0.1 + Math.sin(t * 6) * 0.05, z0 - 0.3, 0.8, 0.8, 0.85);
     S.box(ctx, cam, x - 1.0, x + 1.0, base, base + 1.25, z0, z0 + len, high ? { tex: this.carBodyA, top: '#9C83FF', side: '#4A34B0' } : { tex: this.carBody, top: '#E04FB4', side: '#8E2C8F' });
     S.box(ctx, cam, x - 0.75, x + 0.75, base + 1.25, base + 2.15, z0 + 1.6, z0 + len - 1.4, { tex: this.carGlass, top: '#3A2A8C', side: '#24306A' });
     // faróis acesos
@@ -98,9 +106,11 @@ ZYRO.Vehicles = {
     }
   },
 
-  // ---------- rampa amarela na frente da van ----------
-  ramp(ctx, cam, pl, z0) {
-    const P = ZYRO.CONFIG.PLATFORM, x = pl.lane * ZYRO.CONFIG.LANE_W, x0 = x - 1.05, x1 = x + 1.05, z1 = z0 + P.rampLen, h = pl.h;
+  // ---------- Rampa amarela na frente da van ----------
+  // A rampa é um plano inclinado: começa no chão (y = 0) em z0 e chega no teto (y = h) em z1.
+  // As laterais são triângulos (só a que a câmera vê).
+  ramp(ctx, cam, platform, z0) {
+    const P = ZYRO.CONFIG.PLATFORM, x = platform.lane * ZYRO.CONFIG.LANE_WIDTH, x0 = x - 1.05, x1 = x + 1.05, z1 = z0 + P.rampLen, h = platform.h;
     const Q = (a, b, c) => cam.px(a, b, c);
     if (cam.x < x0) this.poly(ctx, [Q(x0, 0, z0), Q(x0, 0, z1), Q(x0, h, z1)], '#B08A1C');
     if (cam.x > x1) this.poly(ctx, [Q(x1, 0, z0), Q(x1, 0, z1), Q(x1, h, z1)], '#B08A1C');
@@ -116,13 +126,14 @@ ZYRO.Vehicles = {
     }
   },
 
-  // ---------- uma van estacionada (pedaço da plataforma) ----------
-  van(ctx, cam, pl, zc, len, t) {
-    const S = ZYRO.Sprites, x = pl.lane * ZYRO.CONFIG.LANE_W, x0 = x - 1.05, x1 = x + 1.05, z1 = zc + len - 0.4, h = pl.h;
-    const [col, dark] = this.VAN_COLORS[pl.color];
+  // ---------- Uma van estacionada (cada platform tem de 1 a 3) ----------
+  // zc = onde esta van começa (relativo ao jogador) · len = comprimento de uma van
+  van(ctx, cam, platform, zc, len, t) {
+    const S = ZYRO.Sprites, x = platform.lane * ZYRO.CONFIG.LANE_WIDTH, x0 = x - 1.05, x1 = x + 1.05, z1 = zc + len - 0.4, h = platform.h;
+    const [col, dark] = this.VAN_COLORS[platform.color];
     S.shadow(ctx, cam, x0 - 0.1, x1 + 0.1, zc, z1, 0.3);
     this.underGlow(ctx, cam, x, 0.15, zc + len / 2, 1.5, '#00D9FF');
-    S.box(ctx, cam, x0, x1, 0.3, h, zc, z1, { tex: this.vanRear[pl.color], top: '#3A4A8A', side: ZYRO.U.mixHex(dark, '#101A35', 0.25) });
+    S.box(ctx, cam, x0, x1, 0.3, h, zc, z1, { tex: this.vanRear[platform.color], top: '#3A4A8A', side: ZYRO.Utils.mixHex(dark, '#101A35', 0.25) });
     // janelas na lateral visível
     const side = cam.x < x0 ? x0 : cam.x > x1 ? x1 : null;
     if (side !== null) {

@@ -1,6 +1,12 @@
 /* =========================================================
-   ZYRO — hud.js  (HUD da partida)
-   Atualiza o DOM só quando o valor muda (leve para o navegador).
+   ZYRO — hud.js  (Placar da partida: pontos, barra SHIFT...)
+
+   O HUD é HTML por cima do canvas (não é desenhado no canvas):
+   texto em HTML fica nítido, acessível e fácil de estilizar.
+
+   Desempenho: update() roda 60 vezes por segundo, mas mexer
+   no DOM é caro. Por isso set() só escreve quando o valor
+   MUDOU (guardado em this.cache).
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
@@ -9,108 +15,140 @@ ZYRO.HUD = {
     this.game = game;
     const $ = id => document.getElementById(id);
     this.el = {
-      root: $('hud'), pontos: $('hud-pontos'), dist: $('hud-distancia'), rec: $('hud-recorde'), cores: $('hud-cores'),
-      coresBox: $('hud-cores-box'), mult: $('hud-mult'), poderes: $('hud-poderes'), msgs: $('mensagens'),
-      bar: $('barra-shift'), barFill: $('shift-energia'), barLabel: $('shift-label'), barVal: $('shift-valor'),
-      btnShift: $('btn-shift'), anel: $('shift-anel'), zona: $('banner-zona'), zonaNum: $('banner-zona-num'), zonaNome: $('banner-zona-nome'),
-      flash: $('flash')
+      root: $('hud'), points: $('hud-pontos'), distance: $('hud-distancia'), record: $('hud-recorde'), cores: $('hud-cores'),
+      coresBox: $('hud-cores-box'), mult: $('hud-mult'), powers: $('hud-poderes'), messages: $('mensagens'),
+      bar: $('barra-shift'), barFill: $('shift-energia'), barLabel: $('shift-label'), barValue: $('shift-valor'),
+      btnShift: $('btn-shift'), ring: $('shift-anel'),
+      zoneBanner: $('banner-zona'), zoneNumber: $('banner-zona-num'), zoneName: $('banner-zona-nome'),
+      flash: $('flash'),
+      tutorial: $('tutorial-dica'), tutorialTitle: $('tutorial-titulo'), tutorialKeys: $('tutorial-teclas'),
+      tutorialGesture: $('tutorial-gesto'), tutorialText: $('tutorial-texto')
     };
     this.cache = {};
-    this.chips = {};
-    this.msgBusy = 0;
+    this.chips = {};            // power-ups ativos na tela: { magnet: <div>, ... }
+    this.messageBusyUntil = 0;
     this.listen();
   },
 
-  set(key, el, val) { if (this.cache[key] !== val) { this.cache[key] = val; el.textContent = val; } },
+  // escreve no elemento só se o valor mudou
+  set(key, element, value) { if (this.cache[key] !== value) { this.cache[key] = value; element.textContent = value; } },
+
+  // reinicia uma animação CSS (tirar a classe, forçar o navegador a recalcular, pôr de novo)
+  restartAnimation(element, className) { element.classList.remove(className); void element.offsetWidth; element.classList.add(className); },
 
   listen() {
-    const B = ZYRO.Bus;
-    B.on('start', () => {
-      this.cache = {}; this.el.msgs.innerHTML = ''; this.el.poderes.innerHTML = ''; this.chips = {};
+    const Bus = ZYRO.Bus;
+    Bus.on('start', () => {
+      this.cache = {}; this.el.messages.innerHTML = ''; this.el.powers.innerHTML = ''; this.chips = {};
       this.best = ZYRO.Storage.stats().melhorPontuacao;
+      this.showTutorialHint(null);
       this.message('CORRA!', 'go');
     });
-    B.on('msg', m => this.message(m.text, m.kind, m.color));
-    B.on('core', () => {
-      const b = this.el.coresBox; b.classList.remove('pulo'); void b.offsetWidth; b.classList.add('pulo');
-    });
-    B.on('shiftReady', () => this.message('SHIFT READY!', 'shift'));
-    B.on('shiftStart', () => this.flash('rgba(255,255,255,.8)'));
-    B.on('hit', () => this.flash('rgba(255,77,109,.55)'));
-    B.on('shieldHit', () => this.flash('rgba(0,217,255,.45)'));
-    B.on('zone', z => this.zone(z));
-    B.on('powerup', t => this.addChip(t));
-    B.on('powerupEnd', t => { if (this.chips[t]) { this.chips[t].remove(); delete this.chips[t]; } });
+    Bus.on('msg', message => this.message(message.text, message.kind, message.color));
+    Bus.on('core', () => this.restartAnimation(this.el.coresBox, 'pulo'));
+    Bus.on('shiftReady', () => this.message('SHIFT READY!', 'shift'));
+    Bus.on('shiftStart', () => this.flash('rgba(255,255,255,.8)'));
+    Bus.on('hit', () => this.flash('rgba(255,77,109,.55)'));
+    Bus.on('shieldHit', () => this.flash('rgba(0,217,255,.45)'));
+    Bus.on('zone', zoneIndex => this.zone(zoneIndex));
+    Bus.on('powerup', type => this.addChip(type));
+    Bus.on('powerupEnd', type => { if (this.chips[type]) { this.chips[type].remove(); delete this.chips[type]; } });
   },
 
+  // clarão na tela inteira (mais fraco com "reduzir animações")
   flash(color) {
     if (ZYRO.Renderer.reduce) color = color.replace(/[\d.]+\)$/, '0.2)');
-    const f = this.el.flash; f.style.background = color;
-    f.classList.remove('ativo'); void f.offsetWidth; f.classList.add('ativo');
+    this.el.flash.style.background = color;
+    this.restartAnimation(this.el.flash, 'ativo');
   },
 
-  // mensagens curtas e animadas, uma de cada vez (não cobrem a pista)
+  // Mensagens curtas e animadas (PERFECT!, COMBO x2!...), uma de cada vez.
+  // As comuns esperam a anterior terminar; as importantes passam na frente.
   message(text, kind = 'perfect', color) {
     const now = performance.now();
     const important = ['shift', 'record', 'combo', 'go', 'power'].includes(kind);
-    if (!important && now < this.msgBusy) return;
-    this.el.msgs.innerHTML = '';
-    const m = document.createElement('div');
-    m.className = 'msg msg--' + kind;
-    if (color) m.style.setProperty('--cor', color);
-    m.textContent = text;
-    this.el.msgs.appendChild(m);
-    this.msgBusy = now + 650;
-    m.addEventListener('animationend', () => m.remove());
+    if (!important && now < this.messageBusyUntil) return;
+    this.el.messages.innerHTML = '';
+    const element = document.createElement('div');
+    element.className = 'msg msg--' + kind;
+    if (color) element.style.setProperty('--cor', color);
+    element.textContent = text;
+    this.el.messages.appendChild(element);
+    this.messageBusyUntil = now + 650;
+    element.addEventListener('animationend', () => element.remove());
   },
 
-  zone(z) {
-    const Z = ZYRO.CONFIG.ZONES[z], e = this.el;
-    e.zonaNum.textContent = 'ZONA ' + Z.id; e.zonaNome.textContent = Z.name;
-    e.zona.dataset.zona = Z.id;
-    e.zona.hidden = false; e.zona.classList.remove('ativo'); void e.zona.offsetWidth; e.zona.classList.add('ativo');
-    clearTimeout(this.zt); this.zt = setTimeout(() => { e.zona.hidden = true; }, 2400);
+  zone(zoneIndex) {
+    const zone = ZYRO.CONFIG.ZONES[zoneIndex], el = this.el;
+    el.zoneNumber.textContent = 'ZONA ' + zone.id; el.zoneName.textContent = zone.name;
+    el.zoneBanner.dataset.zona = zone.id;
+    el.zoneBanner.hidden = false;
+    this.restartAnimation(el.zoneBanner, 'ativo');
+    clearTimeout(this.zoneTimer); this.zoneTimer = setTimeout(() => { el.zoneBanner.hidden = true; }, 2400);
   },
 
   addChip(type) {
-    const T = ZYRO.POWERUP_TYPES[type];
-    if (this.chips[type]) return;
-    const c = document.createElement('div');
-    c.className = 'poder'; c.style.setProperty('--cor', T.cor);
-    c.innerHTML = `<svg><use href="#i-${T.icone}"/></svg><span class="poder__tempo"><i></i></span>`;
-    c.title = T.nome;
-    this.el.poderes.appendChild(c);
-    this.chips[type] = c;
+    const info = ZYRO.POWERUP_TYPES[type];
+    if (this.chips[type]) return;        // pegou de novo: o chip já está lá (só o tempo renova)
+    const chip = document.createElement('div');
+    chip.className = 'poder'; chip.style.setProperty('--cor', info.cor);
+    chip.innerHTML = `<svg><use href="#i-${info.icone}"/></svg><span class="poder__tempo"><i></i></span>`;
+    chip.title = info.nome;
+    this.el.powers.appendChild(chip);
+    this.chips[type] = chip;
+  },
+
+  // Dica do tutorial: título, teclas (computador) ou gesto (celular) e um texto opcional.
+  // O CSS decide qual dos dois mostrar pela classe "toque" no body.
+  showTutorialHint(hint) {
+    const el = this.el;
+    if (this.cache.hint === hint) return;
+    this.cache.hint = hint;
+    el.tutorial.hidden = !hint;
+    if (!hint) return;
+    el.tutorialTitle.textContent = hint.title;
+    el.tutorialKeys.innerHTML = (hint.keys || []).map(key => `<kbd>${key}</kbd>`).join('');
+    el.tutorialKeys.hidden = !hint.keys;
+    el.tutorialGesture.textContent = hint.gesture || '';
+    el.tutorialGesture.hidden = !hint.gesture;
+    el.tutorialText.textContent = hint.text || '';
+    el.tutorialText.hidden = !hint.text;
+    this.restartAnimation(el.tutorial, 'entrando');
   },
 
   update() {
-    const g = this.game, e = this.el, s = g.score, sh = g.shift;
-    this.set('p', e.pontos, ZYRO.U.fmtScore(s.points));
-    this.set('d', e.dist, ZYRO.U.fmt(g.dist) + ' m');
-    this.set('r', e.rec, ZYRO.U.fmt(Math.max(this.best || 0, s.points)));
-    this.set('c', e.cores, ZYRO.U.fmt(s.cores));
-    const mult = s.mult;
-    if (this.cache.m !== mult) {
-      this.cache.m = mult; e.mult.hidden = mult <= 1; e.mult.textContent = 'x' + mult;
-      e.mult.classList.remove('pulo'); void e.mult.offsetWidth; e.mult.classList.add('pulo');
+    const game = this.game, el = this.el, score = game.score, shift = game.shift, Utils = ZYRO.Utils;
+    this.set('points', el.points, Utils.fmtScore(score.points));
+    this.set('distance', el.distance, Utils.fmt(game.distance) + ' m');
+    this.set('record', el.record, Utils.fmt(Math.max(this.best || 0, score.points)));
+    this.set('cores', el.cores, Utils.fmt(score.cores));
+    this.showTutorialHint(game.tutorial ? game.tutorial.hint : null);
+
+    const mult = score.mult;
+    if (this.cache.mult !== mult) {
+      this.cache.mult = mult; el.mult.hidden = mult <= 1; el.mult.textContent = 'x' + mult;
+      this.restartAnimation(el.mult, 'pulo');
     }
-    for (const [k, c] of Object.entries(this.chips)) {
-      const pct = (g.power[k] / ZYRO.CONFIG.POWERUPS[k].dur) * 100;
-      c.querySelector('i').style.width = pct.toFixed(1) + '%';
+    // barrinha de tempo de cada power-up
+    for (const [type, chip] of Object.entries(this.chips)) {
+      const percent = (game.power[type] / ZYRO.CONFIG.POWERUPS[type].duration) * 100;
+      chip.querySelector('i').style.width = percent.toFixed(1) + '%';
     }
-    const estado = sh.active ? 'ativo' : sh.ready ? 'pronto' : 'carregando';
-    if (this.cache.st !== estado) {
-      this.cache.st = estado;
-      e.bar.dataset.estado = estado; e.btnShift.dataset.estado = estado;
-      e.barLabel.textContent = sh.active ? 'SHIFT ATIVO' : sh.ready ? 'SHIFT READY!' : 'ZYRO SHIFT';
+    // barra do SHIFT: o atributo data-estado muda a cor pelo CSS
+    const state = shift.active ? 'ativo' : shift.ready ? 'pronto' : 'carregando';
+    if (this.cache.shiftState !== state) {
+      this.cache.shiftState = state;
+      el.bar.dataset.estado = state; el.btnShift.dataset.estado = state;
+      el.barLabel.textContent = shift.active ? 'SHIFT ATIVO' : shift.ready ? 'SHIFT READY!' : 'ZYRO SHIFT';
     }
-    const pct = Math.round(sh.energy);
-    if (this.cache.e !== pct) {
-      this.cache.e = pct;
-      e.barFill.style.width = sh.energy + '%';
-      e.barVal.textContent = sh.active ? sh.t.toFixed(1).replace('.', ',') + ' s' : sh.ready ? 'SHIFT' : pct + '%';
-      const C = 2 * Math.PI * 44;
-      e.anel.style.strokeDasharray = `${(C * sh.energy) / 100} ${C}`;
+    const percent = Math.round(shift.energy);
+    if (this.cache.energy !== percent) {
+      this.cache.energy = percent;
+      el.barFill.style.width = shift.energy + '%';
+      el.barValue.textContent = shift.active ? shift.timeLeft.toFixed(1).replace('.', ',') + ' s' : shift.ready ? 'SHIFT' : percent + '%';
+      // anel do botão do celular: um círculo SVG com traço tracejado; o tamanho do traço = a energia
+      const circumference = 2 * Math.PI * 44;
+      el.ring.style.strokeDasharray = `${(circumference * shift.energy) / 100} ${circumference}`;
     }
   }
 };

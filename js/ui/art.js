@@ -2,6 +2,12 @@
    ZYRO — art.js  (Artes em SVG usadas nos menus)
    Mesmas ilustrações do Figma: ZYRO de frente, logotipo e
    miniaturas dos obstáculos.
+
+   As artes são TEXTO SVG montado com template strings e
+   colocado na página com innerHTML. SVG é vetor: fica nítido
+   em qualquer tamanho de tela, sem arquivos de imagem.
+   uid gera ids únicos para os degradês (<linearGradient id>):
+   duas cópias do herói na mesma página não podem ter o mesmo id.
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 

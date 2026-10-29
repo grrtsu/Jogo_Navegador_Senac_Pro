@@ -62,6 +62,13 @@
         <div class="poderes" id="hud-poderes"></div>
       </div>
       <div class="mensagens" id="mensagens" aria-live="polite"></div>
+      <!-- dica do tutorial (só na primeira corrida) -->
+      <div class="tutorial-dica" id="tutorial-dica" role="status" aria-live="assertive" hidden>
+        <b class="tutorial-dica__titulo" id="tutorial-titulo"></b>
+        <div class="teclas tutorial-dica__teclas" id="tutorial-teclas"></div>
+        <p class="tutorial-dica__gesto" id="tutorial-gesto"></p>
+        <p class="tutorial-dica__texto" id="tutorial-texto"></p>
+      </div>
       <div class="banner-zona" id="banner-zona" hidden><small id="banner-zona-num">ZONA 1</small><b id="banner-zona-nome">NOVA CITY</b></div>
       <div class="hud__base">
         <div class="barra-shift" id="barra-shift" data-estado="carregando">
@@ -194,6 +201,7 @@
           <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-raio"/></svg></span><label><b>Redução de animações</b><small>Menos tremores, flashes e partículas</small></label><button class="toggle" id="cfg-reduzir" role="switch" aria-checked="false" aria-label="Redução de animações"><i></i></button></div>
           <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-grafico"/></svg></span><label><b>Qualidade gráfica</b><small>Baixa ajuda em celulares mais simples</small></label><div class="segmentado" id="cfg-qualidade" role="radiogroup"><button data-v="baixa" role="radio">BAIXA</button><button data-v="media" role="radio">MÉDIA</button><button data-v="alta" role="radio">ALTA</button></div></div>
           <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-ajuda"/></svg></span><label><b>Ajuda</b><small>Rever controles e o ZYRO SHIFT</small></label><button class="btn btn--fantasma btn--pequeno" data-acao="como"><span>COMO JOGAR</span></button></div>
+          <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-reiniciar"/></svg></span><label><b>Tutorial</b><small>Joga o tutorial de novo na próxima corrida</small></label><button class="btn btn--fantasma btn--pequeno" id="btn-tutorial"><span>REFAZER</span></button></div>
           <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-lixeira"/></svg></span><label><b>Reiniciar dados locais</b><small>Apaga recordes e estatísticas</small></label><button class="btn btn--perigo btn--pequeno" id="btn-apagar"><svg><use href="#i-lixeira"/></svg><span>APAGAR DADOS</span></button></div>
         </div>
       </div>
@@ -229,6 +237,7 @@
   <script src="js/game/score.js"></script>
   <script src="js/game/shift.js"></script>
   <script src="js/game/progression.js"></script>
+  <script src="js/game/tutorial.js"></script>
   <script src="js/game/game.js"></script>
   <script src="js/render/camera.js"></script>
   <script src="js/render/sprites.js"></script>

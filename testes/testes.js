@@ -25,9 +25,12 @@
       g.update(dt);
     }
   };
-  const clean = () => { g.obstacles = []; g.coins = []; g.powerups = []; g.platforms = []; g.gen.platList = []; g.gen.trafficClear = []; g.gen.quiet = null; g.gen.nextD = 1e9; g.gen.lastEnd = 1e9; };
-  const fresh = () => { g.start(); clean(); };
-  const obstacle = (type, lane, ahead, open) => { const o = { type, lane, d: g.dist + ahead, len: Z.OBSTACLE_TYPES[type].len, open }; g.obstacles.push(o); return o; };
+  const clean = () => { g.obstacles = []; g.coins = []; g.powerups = []; g.platforms = []; g.generator.platformList = []; g.generator.trafficClear = []; g.generator.quiet = null; g.generator.nextRowAt = 1e9; g.generator.lastRowEnd = 1e9; };
+  // os testes começam a partida sem o tutorial (ele tem testes próprios: T1 e T2)
+  const skipTutorial = () => Z.Storage.setTutorialDone(true);
+  skipTutorial();
+  const fresh = () => { skipTutorial(); g.start(); clean(); };
+  const obstacle = (type, lane, ahead, open) => { const o = { type, lane, d: g.distance + ahead, len: Z.OBSTACLE_TYPES[type].len, open }; g.obstacles.push(o); return o; };
   const click = sel => { const el = document.querySelector(sel); if (!el) throw new Error('não achei ' + sel); el.click(); };
   const key = code => window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
 
@@ -53,9 +56,9 @@
   });
 
   await test(2, 'O personagem corre automaticamente', () => {
-    fresh(); const d0 = g.dist; sim(1);
-    expect(g.dist - d0 > 10, 'andou só ' + (g.dist - d0).toFixed(1) + ' m');
-    return `andou ${(g.dist - d0).toFixed(1)} m em 1 s sem nenhum comando`;
+    fresh(); const d0 = g.distance; sim(1);
+    expect(g.distance - d0 > 10, 'andou só ' + (g.distance - d0).toFixed(1) + ' m');
+    return `andou ${(g.distance - d0).toFixed(1)} m em 1 s sem nenhum comando`;
   });
 
   await test(3, 'Os controles funcionam corretamente', async () => {
@@ -76,9 +79,9 @@
     g.action('right');
     for (let i = 0; i < 14; i++) { g.update(1 / 60); xs.push(g.player.x); }
     const mono = xs.every((x, i) => i === 0 || x >= xs[i - 1] - 1e-9);
-    const mid = xs.filter(x => x > 0.2 && x < C.LANE_W - 0.2).length;
+    const mid = xs.filter(x => x > 0.2 && x < C.LANE_WIDTH - 0.2).length;
     expect(mono, 'movimento não é contínuo'); expect(mid >= 3, 'pulou direto de faixa');
-    expect(near(g.player.x, C.LANE_W, 0.001), 'não terminou na faixa');
+    expect(near(g.player.x, C.LANE_WIDTH, 0.001), 'não terminou na faixa');
     g.action('right'); g.action('right'); sim(0.5); expect(g.player.lane === 1, 'saiu das 3 faixas');
     return `${mid} quadros intermediários em ${C.LANE_TIME}s; não sai das 3 faixas`;
   });
@@ -112,9 +115,9 @@
   });
 
   await test(7, 'A geração de obstáculos mantém rotas possíveis', () => {
-    const gen = new Z.Generator(), fake = { dist: 0, speed: 12, obstacles: [], coins: [], powerups: [], platforms: [] };
+    const gen = new Z.Generator(), fake = { distance: 0, speed: 12, obstacles: [], coins: [], powerups: [], platforms: [] };
     let rows = 0;
-    while (fake.dist < 30000) { fake.dist += 8; fake.speed = Z.Progression.baseSpeed(fake.dist); gen.update(fake); fake.obstacles.length = 0; fake.coins.length = 0; fake.powerups.length = 0; fake.platforms.length = 0; }
+    while (fake.distance < 30000) { fake.distance += 8; fake.speed = Z.Progression.baseSpeed(fake.distance); gen.update(fake); fake.obstacles.length = 0; fake.coins.length = 0; fake.powerups.length = 0; fake.platforms.length = 0; }
     // verificação independente: refaz o cálculo de rota a partir das células
     let reach = new Set([-1, 0, 1]), minT = 9, strict = 0;
     for (const r of gen.log) {
@@ -130,11 +133,11 @@
 
   await test(8, 'Os itens são coletados corretamente', () => {
     fresh(); const c0 = g.score.cores;
-    g.coins.push({ x: 0, y: 0.75, d: g.dist + 5, lane: 0, super: false });
-    g.coins.push({ x: C.LANE_W, y: 0.75, d: g.dist + 6, lane: 1, super: false });
+    g.coins.push({ x: 0, y: 0.75, d: g.distance + 5, lane: 0, super: false });
+    g.coins.push({ x: C.LANE_WIDTH, y: 0.75, d: g.distance + 6, lane: 1, super: false });
     sim(1);
     expect(g.score.cores === c0 + 1, 'cores = ' + g.score.cores);
-    g.coins.push({ x: 0, y: 1, d: g.dist + 5, lane: 0, super: true }); sim(1);
+    g.coins.push({ x: 0, y: 1, d: g.distance + 5, lane: 0, super: true }); sim(1);
     expect(g.score.cores === c0 + 6, 'Super Core não valeu 5');
     return 'pega o core da faixa certa, ignora a outra; Super Core vale 5';
   });
@@ -150,7 +153,7 @@
   });
 
   await test(10, 'A barra SHIFT acumula energia', () => {
-    fresh(); g.coins.push({ x: 0, y: 0.75, d: g.dist + 4, lane: 0, super: false }); sim(0.6);
+    fresh(); g.coins.push({ x: 0, y: 0.75, d: g.distance + 4, lane: 0, super: false }); sim(0.6);
     expect(g.shift.energy === C.SHIFT.gain.core, 'core deu ' + g.shift.energy + '%');
     obstacle('R', 0, g.speed * 0.4); g.action('right'); sim(0.6);
     expect(g.shift.energy === C.SHIFT.gain.core + C.SHIFT.gain.perfect, 'desvio perfeito não encheu');
@@ -190,10 +193,10 @@
     fresh(); obstacle('R', 0, 6); sim(2); await sleep(250);
     expect(Z.Screens.current === 'fim', 'tela de fim não apareceu');
     click('#tela-fim [data-acao="reiniciar"]');
-    expect(g.state === 'playing' && g.dist === 0, 'não reiniciou');
+    expect(g.state === 'playing' && g.distance === 0, 'não reiniciou');
     g.pause(); expect(Z.Screens.current === 'pausa', 'pausa não abriu');
-    g.dist = 50; click('#tela-pausa [data-acao="reiniciar"]');
-    expect(g.state === 'playing' && g.dist === 0, 'REINICIAR da pausa falhou');
+    g.distance = 50; click('#tela-pausa [data-acao="reiniciar"]');
+    expect(g.state === 'playing' && g.distance === 0, 'REINICIAR da pausa falhou');
     return 'CORRER NOVAMENTE e REINICIAR (pausa) começam do zero';
   });
 
@@ -204,17 +207,18 @@
     const raw = JSON.parse(localStorage.getItem(Z.Storage.KEYS.stats));
     expect(r1.novoRecorde && !r2.novoRecorde, 'recorde detectado errado');
     expect(raw.melhorPontuacao === 5000 && raw.partidas === 2 && raw.totalCores === 35, 'localStorage: ' + JSON.stringify(raw));
+    skipTutorial();   // resetData apagou a marca do tutorial
     return 'gravado no localStorage: ' + JSON.stringify(raw);
   });
 
   await test(16, 'A pausa interrompe a partida', () => {
     fresh(); obstacle('R', 1, 20); sim(0.5);
-    g.pause(); const d = g.dist, p = g.score.points, t = g.time, oz = g.obstacles[0].d - g.dist;
+    g.pause(); const d = g.distance, p = g.score.points, t = g.time, oz = g.obstacles[0].d - g.distance;
     sim(2);
-    expect(g.dist === d && g.score.points === p && g.time === t, 'continuou andando');
-    expect(g.obstacles[0].d - g.dist === oz, 'obstáculo se mexeu');
+    expect(g.distance === d && g.score.points === p && g.time === t, 'continuou andando');
+    expect(g.obstacles[0].d - g.distance === oz, 'obstáculo se mexeu');
     expect(!g.action('left'), 'aceitou comando pausado');
-    g.resume(); sim(0.2); expect(g.dist > d, 'não voltou a correr');
+    g.resume(); sim(0.2); expect(g.distance > d, 'não voltou a correr');
     return 'distância, pontos, tempo e obstáculos congelados';
   });
 
@@ -238,7 +242,7 @@
     const out = [];
     for (const [W, H] of sizes) {
       cam.resize(W, H); cam.x = 0; cam.y = cam.baseCamH; cam.sx = cam.sy = 0;
-      const pl = cam.project(0, 0, 0), L = cam.project(-C.LANE_W, 0, 0), R = cam.project(C.LANE_W, 0, 0), hz = cam.horizon;
+      const pl = cam.project(0, 0, 0), L = cam.project(-C.LANE_WIDTH, 0, 0), R = cam.project(C.LANE_WIDTH, 0, 0), hz = cam.horizon;
       expect(pl.y <= H && pl.y > H * 0.6, `${W}x${H}: personagem fora da tela`);
       expect(L.x > 0 && R.x < W, `${W}x${H}: faixas laterais fora da tela`);
       expect(hz > H * 0.15 && hz < H * 0.6, `${W}x${H}: horizonte em ${Math.round(hz)}`);
@@ -259,8 +263,8 @@
     const out = [];
     for (let i = 0; i < 5; i++) {
       g.start(); let t = 0;
-      while (g.state === 'playing' && g.dist < 6000 && t < 600) { sim(1, true); t++; }
-      expect(g.state === 'playing', `corrida ${i + 1} morreu em ${Math.round(g.dist)} m (${g.hitObstacle && g.hitObstacle.type})`);
+      while (g.state === 'playing' && g.distance < 6000 && t < 600) { sim(1, true); t++; }
+      expect(g.state === 'playing', `corrida ${i + 1} morreu em ${Math.round(g.distance)} m (${g.hitObstacle && g.hitObstacle.type})`);
       out.push(Math.round(g.score.points));
     }
     return 'pontos: ' + out.join(', ');
@@ -276,17 +280,17 @@
 
   await test('E3', 'Power-ups: Magnet Core atrai e Score Boost dobra', () => {
     fresh(); g.activatePowerup('magnet');
-    g.coins.push({ x: -C.LANE_W, y: 0.75, d: g.dist + 8, lane: -1, super: false }); sim(1.2);
+    g.coins.push({ x: -C.LANE_WIDTH, y: 0.75, d: g.distance + 8, lane: -1, super: false }); sim(1.2);
     expect(g.score.cores === 1, 'ímã não puxou o core da outra faixa');
     g.activatePowerup('boost'); expect(g.score.mult === 1 && (g.update(1 / 60), g.score.mult === 2), 'boost não dobrou');
-    sim(C.POWERUPS.boost.dur + 0.1); expect(g.score.mult === 1, 'boost não acabou');
-    return 'ímã puxa da outra faixa; boost x2 por ' + C.POWERUPS.boost.dur + ' s';
+    sim(C.POWERUPS.boost.duration + 0.1); expect(g.score.mult === 1, 'boost não acabou');
+    return 'ímã puxa da outra faixa; boost x2 por ' + C.POWERUPS.boost.duration + ' s';
   });
 
   await test('E5', 'Colisão funciona na velocidade máxima (1000 medidas)', () => {
     const out = [];
     for (const fps of [60, 30, 20]) {
-      fresh(); g.dist = 30000; g.speed = Z.Progression.baseSpeed(30000); obstacle('L', 0, 40);
+      fresh(); g.distance = 30000; g.speed = Z.Progression.baseSpeed(30000); obstacle('L', 0, 40);
       sim(1, false, 1 / fps);
       expect(g.state !== 'playing', `a ${fps} FPS atravessou a barreira sem bater`);
       out.push(fps + ' FPS');
@@ -294,14 +298,14 @@
     return 'bateu corretamente a 120 m/s em ' + out.join(', ');
   });
 
-  const car = (type, lane, meet, v = 14) => { const o = { type, lane, d: 9e3, dm: g.dist + meet, v, len: Z.OBSTACLE_TYPES[type].len }; g.obstacles.push(o); g.moveTraffic(); return o; };
+  const car = (type, lane, meet, ownSpeed = 14) => { const o = { type, lane, d: 9e3, meetAt: g.distance + meet, ownSpeed, len: Z.OBSTACLE_TYPES[type].len }; g.obstacles.push(o); g.moveTraffic(); return o; };
   const platform = (lane, ahead, ramp, cars = 2) => {
-    const P = C.PLATFORM, pl = { lane, ramp, cars, h: P.height, d0: g.dist + ahead, color: 0 };
+    const P = C.PLATFORM, pl = { lane, ramp, cars, h: P.height, d0: g.distance + ahead, color: 0 };
     pl.d1 = pl.d0 + (ramp ? P.rampLen : 0) + cars * P.carLen; g.platforms.push(pl); return pl;
   };
 
   await test('N1', 'Tráfego aéreo: carro vem na contramão e colide de frente', () => {
-    fresh(); const o = car('T', 0, 40); const z1 = o.d - g.dist; sim(0.5); const z2 = o.d - g.dist;
+    fresh(); const o = car('T', 0, 40); const z1 = o.d - g.distance; sim(0.5); const z2 = o.d - g.distance;
     const closing = (z1 - z2) / 0.5;
     expect(closing > g.speed + 10, 'não vem na direção do jogador (aproxima ' + closing.toFixed(1) + ' m/s)');
     sim(3.5); expect(g.state !== 'playing' && g.hitObstacle && g.hitObstacle.type === 'T', 'não houve colisão frontal');
@@ -313,7 +317,7 @@
 
   await test('N2', 'Carros estacionados: rampa leva ao teto, sem rampa bate', () => {
     fresh(); const pl = platform(0, 8, true, 2); let maxY = 0, onRoof = 0;
-    for (let i = 0; i < 180; i++) { g.update(1 / 60); maxY = Math.max(maxY, g.player.y); if (g.dist > Z.Platform.carsStart(pl) && g.dist < pl.d1 && Math.abs(g.player.y - pl.h) < 0.01) onRoof++; }
+    for (let i = 0; i < 180; i++) { g.update(1 / 60); maxY = Math.max(maxY, g.player.y); if (g.distance > Z.Platform.carsStart(pl) && g.distance < pl.d1 && Math.abs(g.player.y - pl.h) < 0.01) onRoof++; }
     expect(g.state === 'playing', 'bateu subindo a rampa');
     expect(near(maxY, C.PLATFORM.height, 0.01) && onRoof > 60, `não correu no teto (altura máx ${maxY.toFixed(2)})`);
     sim(1.5); expect(g.player.y === 0 && g.state === 'playing', 'não desceu do teto no fim');
@@ -334,13 +338,13 @@
     expect(near(g.player.y, C.POWERUPS.jetpack.height, 0.3), 'não subiu (y = ' + g.player.y.toFixed(2) + ')');
     expect(g.state === 'playing', 'bateu voando');
     const coresAr = g.score.cores; let y0 = g.player.y, maxDrop = 0;
-    for (let t = 0; t < C.POWERUPS.jetpack.dur; t += 1 / 60) { g.update(1 / 60); maxDrop = Math.max(maxDrop, y0 - g.player.y); y0 = g.player.y; if (!g.player.flying && g.player.y === 0) break; }
+    for (let t = 0; t < C.POWERUPS.jetpack.duration; t += 1 / 60) { g.update(1 / 60); maxDrop = Math.max(maxDrop, y0 - g.player.y); y0 = g.player.y; if (!g.player.flying && g.player.y === 0) break; }
     expect(g.state === 'playing', 'morreu no pouso');
     expect(!g.player.flying && g.player.y === 0, 'não pousou');
     expect(maxDrop < 0.5, 'desceu de uma vez (' + maxDrop.toFixed(2) + ' m num quadro)');
     expect(coresAr > 0 || g.score.cores > 0, 'não pegou nenhum core do céu');
-    const q = g.gen.quiet; expect(q && !g.obstacles.some(o => (o.dm ?? o.d) >= q.from && (o.dm ?? o.d) <= q.to), 'tem obstáculo no trecho de pouso');
-    return `${sky} cores no céu, voa a ${C.POWERUPS.jetpack.height} m por ${C.POWERUPS.jetpack.dur} s, pousa suave numa área livre`;
+    const q = g.generator.quiet; expect(q && !g.obstacles.some(o => (o.meetAt ?? o.d) >= q.from && (o.meetAt ?? o.d) <= q.to), 'tem obstáculo no trecho de pouso');
+    return `${sky} cores no céu, voa a ${C.POWERUPS.jetpack.height} m por ${C.POWERUPS.jetpack.duration} s, pousa suave numa área livre`;
   });
 
   await test('E4', 'Velocidade: 100 medidas, +25 a cada 500 m, máximo 1000', () => {
@@ -348,10 +352,52 @@
     const u = pts.map(d => P.speedUnits(d));
     expect(u.join() === '100,100,125,125,150,225,975,1000,1000', 'medidas: ' + u.join());
     expect(near(P.baseSpeed(0), 12, 1e-9) && near(P.baseSpeed(30000), 120, 1e-9), 'conversão para m/s');
-    fresh(); g.dist = 500; sim(2); expect(near(g.speed, P.baseSpeed(520), 0.15), 'jogo não acelerou para 125 (' + g.speed.toFixed(2) + ' m/s)');
+    fresh(); g.distance = 500; sim(2); expect(near(g.speed, P.baseSpeed(520), 0.15), 'jogo não acelerou para 125 (' + g.speed.toFixed(2) + ' m/s)');
     const z = [0, 1500, 3000].map(d => P.zoneIndex(d) + 1).join();
     expect(z === '1,2,3', 'zonas ' + z);
     return pts.map((d, k) => `${d} m → ${u[k]}`).join(' · ');
+  });
+
+  // ---------------- TUTORIAL ----------------
+  await test('T1', 'Tutorial: para o tempo, espera a ação certa e ensina os 4 movimentos', () => {
+    Z.Storage.setTutorialDone(false);
+    g.start();
+    expect(g.tutorial, 'o tutorial não começou na primeira corrida');
+    const answer = { lane: 'left', up: 'up', down: 'down', shift: 'shift' };
+    const seen = [];
+    let blockedWrong = 0;
+    for (let frame = 0; frame < 60 * 60 && g.tutorial; frame++) {
+      const tutorial = g.tutorial;
+      if (tutorial.waiting && tutorial.timeScale === 0) {
+        const step = tutorial.currentStep;
+        // parado de verdade: o mundo não anda
+        const before = g.distance; g.update(1 / 60); g.update(1 / 60);
+        expect(g.distance === before, 'o tempo não parou na dica "' + step.hint.title + '"');
+        // tecla errada é ignorada
+        const wrong = step.wants === 'up' ? 'down' : 'up';
+        if (!g.action(wrong)) blockedWrong++;
+        // tecla certa continua o jogo
+        seen.push(step.hint.title);
+        expect(g.action(answer[step.wants]), 'a ação certa não foi aceita em "' + step.hint.title + '"');
+      }
+      g.update(1 / 60);
+      expect(g.state === 'playing', 'o jogador perdeu no tutorial (' + (g.hitObstacle && g.hitObstacle.type) + ' em ' + Math.round(g.distance) + ' m)');
+    }
+    expect(seen.length === 4, 'dicas com espera: ' + seen.join(', '));
+    expect(blockedWrong === 4, 'teclas erradas aceitas durante a dica');
+    expect(!g.tutorial && Z.Storage.tutorialDone(), 'o tutorial não terminou');
+    expect(g.generator.log.length && g.generator.log[0].d >= 270, 'o gerador começou antes do fim do tutorial');
+    expect(g.score.cores >= 5, 'não pegou os cores da trilha (' + g.score.cores + ')');
+    return seen.join(' → ') + ` · ${g.score.cores} cores · gerador começa em ${Math.round(g.generator.log[0].d)} m`;
+  });
+
+  await test('T2', 'Tutorial só na primeira vez; botão REFAZER traz de volta', () => {
+    g.start(); expect(!g.tutorial, 'o tutorial apareceu de novo');
+    Z.Screens.show('config'); click('#btn-tutorial');
+    expect(!Z.Storage.tutorialDone(), 'REFAZER não desmarcou o tutorial');
+    g.start(); expect(g.tutorial, 'o tutorial não voltou depois do REFAZER');
+    skipTutorial(); g.toMenu(); Z.Screens.show('menu');
+    return 'segunda corrida sem tutorial; REFAZER (Configurações) liga de novo';
   });
 
   // ---------------- resultado ----------------
@@ -365,7 +411,7 @@
   panel.className = 'painel-testes';
   panel.innerHTML = `<header><h2>Testes do ZYRO</h2><b class="${ok === results.length ? 'ok' : 'falha'}">${ok}/${results.length} passaram</b><button aria-label="Fechar">✕</button></header>
     <table>${results.map(r => `<tr class="${r.ok ? 'ok' : 'falha'}"><td>${r.ok ? '✔' : '✘'}</td><td>${r.num}</td><td><b>${r.name}</b><small>${r.detail}</small></td></tr>`).join('')}</table>
-    <p>Seus recordes foram restaurados. Os testes 1–18 são os do roteiro (seção 17); E1–E4 são extras.</p>`;
+    <p>Seus recordes foram restaurados. Os testes 1–18 são os do roteiro (seção 17); E são extras, N das mecânicas novas e T do tutorial.</p>`;
   panel.querySelector('button').onclick = () => panel.remove();
   document.body.appendChild(panel);
 })();

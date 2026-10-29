@@ -3,6 +3,21 @@
    Céu → skyline (pré-desenhado) → chão → prédios laterais →
    pista com faixas → paredes → postes e arcos.
    As 3 zonas usam a mesma pista e mudam cores e decoração.
+
+   Ideias usadas aqui:
+   - TEMAS COMO DADOS: cada zona é só um objeto de cores e
+     opções (THEMES). O código de desenho é o mesmo para as 3.
+   - SKYLINE PRÉ-DESENHADO: a cidade do horizonte é desenhada
+     uma vez num canvas invisível (buildSkyline) e depois só
+     copiada a cada quadro.
+   - CIDADE INFINITA SEM MEMÓRIA: a pista é dividida em
+     "vagas" a cada N metros (k = 0, 1, 2...). Utils.hash(k)
+     sorteia SEMPRE o mesmo número para a mesma vaga, então o
+     prédio da vaga 57 é sempre igual, sem guardar nada.
+   - TRANSIÇÃO DE ZONA: zoneFrom → zoneTo com zt indo de 0 a 1;
+     as cores são misturadas (mixHex) durante a troca.
+   - Laços de "vagas" vão do LONGE para o PERTO (k decrescente):
+     algoritmo do pintor, o mais perto cobre o mais longe.
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
@@ -48,6 +63,7 @@ ZYRO.Scenery = {
     if (!this.skyClouds.length) for (let i = 0; i < 7; i++) this.skyClouds.push({ x: Math.random(), y: 0.1 + Math.random() * 0.35, w: 0.08 + Math.random() * 0.12, v: 0.004 + Math.random() * 0.006 });
   },
 
+  // começa a transição para a zona z (instant = troca na hora, usado ao iniciar uma corrida)
   setZone(z, instant) {
     if (instant) { this.zoneFrom = this.zoneTo = z; this.zt = 1; return; }
     if (z === this.zoneTo) return;
@@ -57,7 +73,8 @@ ZYRO.Scenery = {
   // ---------- pré-desenho do horizonte da cidade ----------
   buildSkyline(i, cam) {
     const T = this.THEMES[i], W = Math.ceil(this.W * 1.5), h = Math.ceil(cam.horizon + 4);
-    const U = ZYRO.U;
+    const U = ZYRO.Utils;
+    // gerador de números aleatórios com SEMENTE (congruencial linear): a mesma semente dá sempre a mesma cidade
     let seed = 11 + i * 7; const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
     const unit = Math.max(0.55, h / 300);
     return ZYRO.Sprites.canvas(W, h, (c) => {
@@ -92,7 +109,7 @@ ZYRO.Scenery = {
       return;
     }
     ZYRO.Sprites.rr(c, x, top, w, base - top + 6, Math.min(10 * unit, w / 6)); c.fillStyle = col; c.fill();
-    c.fillStyle = ZYRO.U.rgba('#ffffff', 0.12); c.fillRect(x + w * 0.62, top + 6, w * 0.38 - 6, base - top);
+    c.fillStyle = ZYRO.Utils.rgba('#ffffff', 0.12); c.fillRect(x + w * 0.62, top + 6, w * 0.38 - 6, base - top);
     c.fillStyle = T.neon[0]; c.fillRect(x, top + 8, 3 * unit, base - top);
     c.fillStyle = col; c.fillRect(x + w / 2 - 1.5 * unit, top - 16 * unit, 3 * unit, 16 * unit);
     c.fillStyle = T.neon[1]; c.beginPath(); c.arc(x + w / 2, top - 18 * unit, 3.5 * unit, 0, 7); c.fill();
@@ -106,11 +123,11 @@ ZYRO.Scenery = {
     c.fillStyle = '#00D9FF'; ZYRO.Sprites.rr(c, x, y - 5 * unit, w, 8 * unit, 4 * unit); c.fill();
     for (let i = 0; i < 3; i++) {
       const bw = w / 5, bx = x + w * 0.12 + i * w * 0.3, bt = y - (40 + rnd() * 80) * unit;
-      this.tower(c, bx, bt, bw, y - 4 * unit, ZYRO.U.pick(T.buildings), T, rnd, unit * 0.8, false);
+      this.tower(c, bx, bt, bw, y - 4 * unit, ZYRO.Utils.pick(T.buildings), T, rnd, unit * 0.8, false);
     }
   },
   holo(c, x, y, w, h, col) {
-    c.fillStyle = ZYRO.U.rgba(col, 0.25); ZYRO.Sprites.rr(c, x, y, w, h, 6); c.fill();
+    c.fillStyle = ZYRO.Utils.rgba(col, 0.25); ZYRO.Sprites.rr(c, x, y, w, h, 6); c.fill();
     c.strokeStyle = col; c.lineWidth = 2; c.stroke();
     c.strokeStyle = '#fff'; c.lineWidth = 3; c.lineCap = 'round'; c.lineJoin = 'round';
     c.beginPath(); c.moveTo(x + w * 0.3, y + h * 0.3); c.lineTo(x + w * 0.7, y + h * 0.3); c.lineTo(x + w * 0.3, y + h * 0.7); c.lineTo(x + w * 0.7, y + h * 0.7); c.stroke();
@@ -133,7 +150,7 @@ ZYRO.Scenery = {
   col(key) {
     const a = this.THEMES[this.zoneFrom][key], b = this.THEMES[this.zoneTo][key];
     if (this.zt >= 1 || !a || !b || typeof a !== 'string' || !a.startsWith('#')) return this.zt >= 0.5 ? b : a;
-    return ZYRO.U.mixHex(a, b, this.zt);
+    return ZYRO.Utils.mixHex(a, b, this.zt);
   },
 
   update(dt) {
@@ -143,7 +160,7 @@ ZYRO.Scenery = {
     const T = this.THEMES[this.zoneTo];
     if (T.cars && this.cars.length < (this.quality === 'baixa' ? 2 : 5) && Math.random() < dt * 0.8) {
       const dir = Math.random() < 0.5 ? 1 : -1;
-      this.cars.push({ x: dir > 0 ? -0.1 : 1.1, y: 0.15 + Math.random() * 0.6, v: (0.08 + Math.random() * 0.12) * dir, s: 0.6 + Math.random() * 0.7, c: ZYRO.U.pick(['#00D9FF', '#FF4FBF', '#FFD447', '#42EDAA']) });
+      this.cars.push({ x: dir > 0 ? -0.1 : 1.1, y: 0.15 + Math.random() * 0.6, v: (0.08 + Math.random() * 0.12) * dir, s: 0.6 + Math.random() * 0.7, c: ZYRO.Utils.pick(['#00D9FF', '#FF4FBF', '#FFD447', '#42EDAA']) });
     }
     for (const car of this.cars) car.x += car.v * dt;
     this.cars = this.cars.filter(c => c.x > -0.2 && c.x < 1.2);
@@ -186,7 +203,7 @@ ZYRO.Scenery = {
   },
   car(ctx, x, y, s, dir, col) {
     ctx.save(); ctx.translate(x, y); ctx.scale(s * dir, s);
-    const g = ctx.createLinearGradient(-70, 0, -8, 0); g.addColorStop(0, ZYRO.U.rgba(col, 0)); g.addColorStop(1, ZYRO.U.rgba(col, 0.8));
+    const g = ctx.createLinearGradient(-70, 0, -8, 0); g.addColorStop(0, ZYRO.Utils.rgba(col, 0)); g.addColorStop(1, ZYRO.Utils.rgba(col, 0.8));
     ctx.fillStyle = g; ctx.fillRect(-70, -1.5, 62, 4);
     ctx.fillStyle = '#fff'; ZYRO.Sprites.rr(ctx, -10, -6, 30, 12, 6); ctx.fill();
     ctx.fillStyle = col; ZYRO.Sprites.rr(ctx, 2, -5, 12, 6, 3); ctx.fill();
@@ -205,7 +222,7 @@ ZYRO.Scenery = {
     }
   },
 
-  drawGround(ctx, cam, dist) {
+  drawGround(ctx, cam, distance) {
     const T = this.THEMES[this.zt >= 0.5 ? this.zoneTo : this.zoneFrom];
     const Tf = this.THEMES[this.zoneFrom];
     if (!T.ground && Tf.ground && this.zt < 1) {        // saindo do chão para o céu: o chão some aos poucos
@@ -215,24 +232,24 @@ ZYRO.Scenery = {
     }
     if (T.ground) {
       const g = ctx.createLinearGradient(0, cam.horizon, 0, this.H);
-      g.addColorStop(0, this.zt < 1 && this.THEMES[this.zoneFrom].ground && this.THEMES[this.zoneTo].ground ? ZYRO.U.mixHex(this.THEMES[this.zoneFrom].ground[0], this.THEMES[this.zoneTo].ground[0], this.zt) : T.ground[0]);
+      g.addColorStop(0, this.zt < 1 && this.THEMES[this.zoneFrom].ground && this.THEMES[this.zoneTo].ground ? ZYRO.Utils.mixHex(this.THEMES[this.zoneFrom].ground[0], this.THEMES[this.zoneTo].ground[0], this.zt) : T.ground[0]);
       g.addColorStop(1, T.ground[1]);
       ctx.fillStyle = g; ctx.fillRect(0, cam.horizon, this.W, this.H - cam.horizon);
       if (T.grid) {                     // grade do Hyper Core
-        ctx.strokeStyle = ZYRO.U.rgba(T.grid, 0.25); ctx.lineWidth = 1;
+        ctx.strokeStyle = ZYRO.Utils.rgba(T.grid, 0.25); ctx.lineWidth = 1;
         for (let x = -60; x <= 60; x += 6) { const a = cam.px(x, 0, cam.z + 0.7), b = cam.px(x, 0, 150); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
-        const off = dist % 8;
+        const off = distance % 8;
         for (let z = -off; z < 150; z += 8) { if (z - cam.z < 0.7) continue; const a = cam.px(-60, 0, z), b = cam.px(60, 0, z); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
       }
     }
-    if (T.side === 'clouds') this.cloudSea(ctx, cam, dist);
+    if (T.side === 'clouds') this.cloudSea(ctx, cam, distance);
   },
-  cloudSea(ctx, cam, dist) {
+  cloudSea(ctx, cam, distance) {
     const sp = 14;
-    for (let k = Math.ceil((dist + 150) / sp); k >= Math.floor((dist - 6) / sp); k--) {
+    for (let k = Math.ceil((distance + 150) / sp); k >= Math.floor((distance - 6) / sp); k--) {
       for (const side of [-1, 1]) {
-        const h = ZYRO.U.hash(k, side + 5);
-        const z = k * sp - dist + h * 8, x = side * (6 + h * 26), y = -3 - h * 7;
+        const h = ZYRO.Utils.hash(k, side + 5);
+        const z = k * sp - distance + h * 8, x = side * (6 + h * 26), y = -3 - h * 7;
         const p = cam.project(x, y, z); if (!p) continue;
         const r = (5 + h * 6) * p.s;
         ctx.fillStyle = `rgba(255,255,255,${0.55 + h * 0.35})`;
@@ -243,16 +260,16 @@ ZYRO.Scenery = {
   },
 
   // prédios / torres que passam ao lado da pista
-  drawSideStructures(ctx, cam, dist) {
+  drawSideStructures(ctx, cam, distance) {
     const T = this.THEMES[this.zt >= 0.5 ? this.zoneTo : this.zoneFrom];
     if (T.side === 'clouds') return;
     const ti = this.zt >= 0.5 ? this.zoneTo : this.zoneFrom;
     const sp = this.quality === 'baixa' ? 34 : 22;
-    for (let k = Math.ceil((dist + 150) / sp); k >= Math.floor((dist - 30) / sp); k--) {
+    for (let k = Math.ceil((distance + 150) / sp); k >= Math.floor((distance - 30) / sp); k--) {
       for (const side of [-1, 1]) {
-        const h = ZYRO.U.hash(k, side), h2 = ZYRO.U.hash(k + 77, side);
+        const h = ZYRO.Utils.hash(k, side), h2 = ZYRO.Utils.hash(k + 77, side);
         if (h < 0.3) continue;
-        const z0 = k * sp - dist, depth = 9 + h2 * 8, z1 = z0 + depth;
+        const z0 = k * sp - distance, depth = 9 + h2 * 8, z1 = z0 + depth;
         if (z1 - cam.z < 1) continue;
         const inner = side * (10 + h2 * 9), outer = inner + side * (8 + h * 6);
         const top = T.side === 'pylons' ? 18 + h * 26 : 9 + h * 24;
@@ -260,7 +277,7 @@ ZYRO.Scenery = {
         const col = T.buildings[Math.floor(h2 * T.buildings.length)];
         // face lateral (virada para a pista)
         const A = cam.px(inner, 0, Math.max(z0, cam.z + 0.7)), B = cam.px(inner, top, Math.max(z0, cam.z + 0.7)), Cc = cam.px(inner, top, z1), Dd = cam.px(inner, 0, z1);
-        ctx.fillStyle = ZYRO.U.mixHex(col, '#1B1F4A', 0.62);
+        ctx.fillStyle = ZYRO.Utils.mixHex(col, '#1B1F4A', 0.62);
         ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(Cc[0], Cc[1]); ctx.lineTo(Dd[0], Dd[1]); ctx.closePath(); ctx.fill();
         if (T.side === 'pylons') {
           ctx.strokeStyle = T.neon[k % 2]; ctx.lineWidth = Math.max(1, cam.scaleAt(z0) * 0.25);
@@ -277,11 +294,11 @@ ZYRO.Scenery = {
     }
   },
 
-  drawTrack(ctx, cam, dist, shiftAmt) {
-    const H = ZYRO.CONFIG.TRACK_HALF, zN = cam.z + 0.62, zF = ZYRO.CONFIG.DRAW_DIST;
+  drawTrack(ctx, cam, distance, shiftAmt) {
+    const H = ZYRO.CONFIG.TRACK_HALF_WIDTH, zN = cam.z + 0.62, zF = ZYRO.CONFIG.DRAW_DIST;
     const Tz = this.THEMES[this.zoneTo], Tf = this.THEMES[this.zoneFrom];
-    const near = this.zt < 1 ? ZYRO.U.mixHex(Tf.road[1], Tz.road[1], this.zt) : Tz.road[1];
-    const far = this.zt < 1 ? ZYRO.U.mixHex(Tf.road[0], Tz.road[0], this.zt) : Tz.road[0];
+    const near = this.zt < 1 ? ZYRO.Utils.mixHex(Tf.road[1], Tz.road[1], this.zt) : Tz.road[1];
+    const far = this.zt < 1 ? ZYRO.Utils.mixHex(Tf.road[0], Tz.road[0], this.zt) : Tz.road[0];
     const quad = (x0, x1, z0, z1, y = 0) => {
       const a = cam.px(x0, y, z0), b = cam.px(x1, y, z0), c = cam.px(x1, y, z1), d = cam.px(x0, y, z1);
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.closePath();
@@ -292,14 +309,14 @@ ZYRO.Scenery = {
     quad(-H, H, zN, zF); ctx.fillStyle = g; ctx.fill();
     // faixas claras que passam (sensação de velocidade)
     ctx.fillStyle = this.col('band') || 'rgba(255,255,255,.06)';
-    const off = dist % 12;
+    const off = distance % 12;
     for (let z = -off - 12; z < zF; z += 12) { const z0 = Math.max(zN, z), z1 = Math.max(zN, z + 6); if (z1 > z0) { quad(-H, H, z0, z1); ctx.fill(); } }
     // reflexos do céu
     ctx.fillStyle = 'rgba(255,255,255,.05)';
     quad(-0.6, -0.25, zN, zF); ctx.fill(); quad(1.4, 1.7, zN, zF); ctx.fill();
     // divisórias tracejadas das faixas
     ctx.fillStyle = this.col('dash');
-    const dOff = dist % 9;
+    const dOff = distance % 9;
     for (const lx of [-1.2, 1.2]) {
       for (let z = -dOff - 9; z < zF; z += 9) {
         const z0 = Math.max(zN, z), z1 = Math.max(zN, z + 3.2);
@@ -320,23 +337,23 @@ ZYRO.Scenery = {
       ctx.fillStyle = wall; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.closePath(); ctx.fill();
       quad(x, x + s * 0.3, zN, zF, 0.55); ctx.fillStyle = wallTop; ctx.fill();
       const r0 = cam.px(x, 0.55, zN), r1 = cam.px(x, 0.55, zF);
-      ctx.strokeStyle = ZYRO.U.rgba(rail, 0.35); ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(r0[0], r0[1]); ctx.lineTo(r1[0], r1[1]); ctx.stroke();
+      ctx.strokeStyle = ZYRO.Utils.rgba(rail, 0.35); ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(r0[0], r0[1]); ctx.lineTo(r1[0], r1[1]); ctx.stroke();
       ctx.strokeStyle = rail; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(r0[0], r0[1]); ctx.lineTo(r1[0], r1[1]); ctx.stroke();
       // luzinhas na parede
       ctx.fillStyle = this.col('lamp');
-      const lo = dist % 6;
+      const lo = distance % 6;
       for (let z = 6 - lo; z < 90; z += 6) { const p = cam.project(x, 0.28, z); if (p) { ctx.fillRect(p.x - p.s * 0.05, p.y - p.s * 0.05, p.s * 0.1, p.s * 0.1); } }
     }
   },
 
   // postes e arcos (passarelas) — desenhados do mais longe ao mais perto
-  drawDecor(ctx, cam, dist, t) {
+  drawDecor(ctx, cam, distance, t) {
     const lamp = this.col('lamp'), arch = this.col('arch');
     const T = this.THEMES[this.zt >= 0.5 ? this.zoneTo : this.zoneFrom];
     const items = [];
     const ls = this.quality === 'baixa' ? 28 : 16;
-    for (let k = Math.floor((dist - 6) / ls); k * ls < dist + 140; k++) items.push({ z: k * ls - dist, kind: 'lamp', k });
-    for (let k = Math.floor((dist - 6) / 110); k * 110 < dist + 150; k++) if (k > 0) items.push({ z: k * 110 - dist + 40, kind: 'arch', k });
+    for (let k = Math.floor((distance - 6) / ls); k * ls < distance + 140; k++) items.push({ z: k * ls - distance, kind: 'lamp', k });
+    for (let k = Math.floor((distance - 6) / 110); k * 110 < distance + 150; k++) if (k > 0) items.push({ z: k * 110 - distance + 40, kind: 'arch', k });
     items.sort((a, b) => b.z - a.z);
     for (const it of items) {
       if (it.z < (it.kind === 'lamp' ? 3 : -4) || it.z - cam.z < 1.2) continue;

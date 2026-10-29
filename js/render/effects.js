@@ -3,18 +3,28 @@
    Brilho de coleta, detritos, poeira, confete, linhas de
    velocidade e ondas de energia. Usa poucos objetos e
    respeita "Redução de animações" e "Qualidade gráfica".
+
+   SISTEMA DE PARTÍCULAS: cada partícula é um objeto simples
+   { x, y, vx, vy, life }. A cada quadro: a gravidade muda vy,
+   a velocidade muda a posição e a vida diminui. Quando a vida
+   acaba, ela sai da lista. Os efeitos ficam em coordenadas de
+   TELA (px), não do mundo: são rápidos e não precisam de 3D.
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
 ZYRO.Effects = {
-  parts: [], floats: [], rings: [],
+  parts: [],    // partículas (pontos, retângulos, faíscas)
+  floats: [],   // textos que sobem ("+100")
+  rings: [],    // ondas de energia (elipses que crescem)
   reduce: false, quality: 'alta',
 
+  // "Orçamento" de partículas: com qualidade baixa ou animações reduzidas, solta menos
   get budget() { return this.reduce ? 0.35 : this.quality === 'baixa' ? 0.4 : this.quality === 'media' ? 0.7 : 1; },
 
+  // Explosão de n partículas em (x, y). Opções: angle + spread (direção do leque), speed, gravity, life, size, shape.
   burst(x, y, colors, n, o = {}) {
     n = Math.max(1, Math.round(n * this.budget));
-    for (let i = 0; i < n && this.parts.length < 420; i++) {
+    for (let i = 0; i < n && this.parts.length < 420; i++) {   // limite de 420 para nunca pesar o jogo
       const a = o.angle !== undefined ? o.angle + (Math.random() - 0.5) * (o.spread || 1) : Math.random() * Math.PI * 2;
       const v = (o.speed || 240) * (0.4 + Math.random() * 0.8);
       this.parts.push({
@@ -46,6 +56,7 @@ ZYRO.Effects = {
     this.floats.push({ text, color, x, y, t: 0, life: 0.9, size });
   },
 
+  // física simples: gravidade → velocidade → posição; remove o que morreu
   update(dt) {
     for (const p of this.parts) { p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; }
     this.parts = this.parts.filter(p => p.life > 0);
@@ -76,7 +87,7 @@ ZYRO.Effects = {
     ctx.globalAlpha = 1;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const f of this.floats) {
-      const k = f.t / f.life, y = f.y - 60 * ZYRO.U.easeOutCubic(k), s = 1 + (k < 0.15 ? (0.15 - k) * 3 : 0);
+      const k = f.t / f.life, y = f.y - 60 * ZYRO.Utils.easeOutCubic(k), s = 1 + (k < 0.15 ? (0.15 - k) * 3 : 0);
       ctx.globalAlpha = k > 0.6 ? (1 - k) / 0.4 : 1;
       ctx.font = `900 italic ${Math.round(f.size * s)}px "Exo 2", system-ui, sans-serif`;
       ctx.lineWidth = 5; ctx.strokeStyle = '#101A35'; ctx.strokeText(f.text, f.x, y);
@@ -93,8 +104,8 @@ ZYRO.Effects = {
     const R = Math.hypot(cam.W, cam.H);
     ctx.lineCap = 'round';
     for (let i = 0; i < n; i++) {
-      const seed = ZYRO.U.hash(i, Math.floor(t * 9));
-      const a = seed * Math.PI * 2, r0 = R * (0.22 + ZYRO.U.hash(i + 9, Math.floor(t * 9)) * 0.25), r1 = r0 + R * (0.12 + seed * 0.2);
+      const seed = ZYRO.Utils.hash(i, Math.floor(t * 9));
+      const a = seed * Math.PI * 2, r0 = R * (0.22 + ZYRO.Utils.hash(i + 9, Math.floor(t * 9)) * 0.25), r1 = r0 + R * (0.12 + seed * 0.2);
       ctx.strokeStyle = colors[i % colors.length]; ctx.globalAlpha = 0.25 + 0.35 * amount; ctx.lineWidth = 1.5 + seed * 3;
       ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0 * 0.7); ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1 * 0.7); ctx.stroke();
     }

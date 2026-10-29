@@ -95,7 +95,7 @@ body.toque .barra-shift { width: min(300px, 46vw); }
 
 /* Configurações */
 .painel--lista { width: min(820px, 100%); padding: 8px 32px; }
-.linha-config { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--borda); }
+.linha-config { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--borda); }
 .linha-config:last-child { border-bottom: 0; }
 .linha-config__icone { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--superficie-2); color: var(--azul-eletrico); flex: none; }
 .linha-config__icone svg { font-size: 22px; }

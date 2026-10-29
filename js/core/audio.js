@@ -3,6 +3,16 @@
    Tudo sintetizado com Web Audio API: nenhum arquivo de
    som externo, nenhum custo. O áudio só liga depois do
    primeiro toque/clique (regra dos navegadores).
+
+   Como um som é feito (Web Audio API):
+     oscilador (gera a onda: sine, square, sawtooth, triangle)
+        → ganho (volume, com envelope: sobe rápido e some)
+        → saída
+   - tone(): uma nota com frequência (Hz), duração e, se quiser,
+     "slide" (a frequência escorrega até outra: pulo = sobe).
+   - noise(): ruído branco filtrado (sopro, explosão, chimbal).
+   A música é um sequenciador: a cada 1/16 de compasso decide
+   se toca bumbo, caixa, chimbal, baixo e arpejo.
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
@@ -36,12 +46,14 @@ ZYRO.Audio = {
   setVolumes(sfx, music, on) { this.sfxVol = sfx; this.musicVol = music; this.musicOn = on; this.apply(); },
   muffle(on) { if (this.ctx) this.musicFilter.frequency.setTargetAtTime(on ? 700 : 9000, this.ctx.currentTime, 0.08); },
 
+  // nota: freq (Hz) · dur (s) · type (forma da onda) · vol · slideTo (Hz final) · when (atraso em s) · dest (saída)
   tone(freq, dur, type = 'sine', vol = 0.3, slideTo = null, when = 0, dest = null) {
     const c = this.ctx; if (!c) return;
     const t = c.currentTime + when;
     const o = c.createOscillator(), g = c.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, t);
     if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    // envelope: começa quase mudo, sobe ao volume em 8 ms e desce até sumir (evita "clique" no começo e no fim)
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(dest || this.sfx); o.start(t); o.stop(t + dur + 0.02);
@@ -56,6 +68,7 @@ ZYRO.Audio = {
     s.connect(f); f.connect(g); g.connect(dest || this.sfx); s.start(t); s.stop(t + dur);
   },
 
+  // Cada efeito sonoro é uma "receita" de notas e ruídos (nenhum arquivo .mp3)
   play(name, arg) {
     if (!this.ctx || this.sfxVol <= 0) return;
     switch (name) {
@@ -98,6 +111,8 @@ ZYRO.Audio = {
   },
   stopMusic() { this.wantMusic = false; this.playing = false; clearInterval(this.timer); },
 
+  // Agenda as notas dos próximos 0,12 s. Agendar um pouco à frente (em vez de tocar "agora")
+  // deixa o ritmo preciso mesmo se o setInterval atrasar.
   schedule() {
     const c = this.ctx, spb = 60 / 120 / 4;                 // semicolcheias a 120 bpm
     while (this.nextT < c.currentTime + 0.12) {

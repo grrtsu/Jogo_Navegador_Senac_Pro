@@ -1,16 +1,24 @@
 /* =========================================================
    ZYRO — input.js  (Teclado e gestos de toque)
-   Teclado: ← → / A D, ↑ / W, ↓ / S, Shift (ZYRO SHIFT), Esc / P.
-   Celular: deslizar o dedo (reage durante o movimento, sem
-   esperar soltar) + botão SHIFT na tela.
+
+   Transforma "o que o jogador apertou" em AÇÕES com nome:
+   'left', 'right', 'up', 'down', 'shift', 'pause', 'confirm'.
+   O resto do jogo só conhece as ações, nunca as teclas.
+   Vantagem: teclado e celular viram a mesma coisa, e trocar
+   uma tecla é mudar uma linha da tabela KEYS.
+
+   Teclado: ← → / A D, ↑ / W, ↓ / S, Shift, Esc / P, Enter.
+   Celular: deslizar o dedo (reage DURANTE o movimento, sem
+   esperar soltar, para ser rápido) + botão SHIFT na tela.
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
 ZYRO.Input = {
-  handlers: [],
-  on(fn) { this.handlers.push(fn); },
-  emit(action) { for (const fn of this.handlers) fn(action); },
+  listeners: [],
+  on(listener) { this.listeners.push(listener); },
+  emit(action) { for (const listener of this.listeners) listener(action); },
 
+  // e.code identifica a tecla FÍSICA (KeyA é sempre a mesma tecla, em qualquer layout de teclado)
   KEYS: {
     ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
     ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
@@ -18,34 +26,40 @@ ZYRO.Input = {
   },
 
   init(swipeArea) {
-    window.addEventListener('keydown', e => {
-      const a = this.KEYS[e.code];
-      if (!a) return;
-      // não rouba as teclas quando o foco está num controle da interface
-      const tag = (document.activeElement && document.activeElement.tagName) || '';
-      if ((a === 'confirm' || a === 'shift') && ['BUTTON', 'INPUT', 'SELECT'].includes(tag) && !document.body.classList.contains('em-jogo')) return;
-      if (e.repeat && a !== 'pause') { e.preventDefault(); return; }
-      if (document.body.classList.contains('em-jogo') || a === 'pause') e.preventDefault();
-      this.emit(a);
+    // ---------- teclado ----------
+    window.addEventListener('keydown', event => {
+      const action = this.KEYS[event.code];
+      if (!action) return;
+      const inGame = document.body.classList.contains('em-jogo');
+      // Fora do jogo, Enter e Shift num botão focado são do botão (acessibilidade): não roubamos.
+      const focusedTag = (document.activeElement && document.activeElement.tagName) || '';
+      if ((action === 'confirm' || action === 'shift') && ['BUTTON', 'INPUT', 'SELECT'].includes(focusedTag) && !inGame) return;
+      // Segurar a tecla gera repetições automáticas: ignoramos, senão segurar → trocaria 10 faixas.
+      if (event.repeat && action !== 'pause') { event.preventDefault(); return; }
+      // No jogo, as setas não podem rolar a página.
+      if (inGame || action === 'pause') event.preventDefault();
+      this.emit(action);
     });
 
-    // gestos
-    let sx = 0, sy = 0, id = null, used = false;
-    const TH = 26;
-    swipeArea.addEventListener('pointerdown', e => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      id = e.pointerId; sx = e.clientX; sy = e.clientY; used = false;
+    // ---------- gestos (Pointer Events: o mesmo código serve para dedo, caneta e mouse) ----------
+    const MIN_DISTANCE = 26;     // px que o dedo precisa andar para contar como gesto (evita toques acidentais)
+    let startX = 0, startY = 0, activePointer = null, alreadyUsed = false;
+
+    swipeArea.addEventListener('pointerdown', event => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;   // só botão esquerdo
+      activePointer = event.pointerId; startX = event.clientX; startY = event.clientY; alreadyUsed = false;
     });
-    swipeArea.addEventListener('pointermove', e => {
-      if (e.pointerId !== id || used) return;
-      const dx = e.clientX - sx, dy = e.clientY - sy;
-      if (Math.max(Math.abs(dx), Math.abs(dy)) < TH) return;
-      used = true;
+    swipeArea.addEventListener('pointermove', event => {
+      if (event.pointerId !== activePointer || alreadyUsed) return;      // um gesto = uma ação
+      const dx = event.clientX - startX, dy = event.clientY - startY;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < MIN_DISTANCE) return;
+      alreadyUsed = true;
+      // o eixo que andou mais decide: horizontal = trocar de faixa, vertical = pular/deslizar
       if (Math.abs(dx) > Math.abs(dy)) this.emit(dx > 0 ? 'right' : 'left');
       else this.emit(dy > 0 ? 'down' : 'up');
     });
-    const end = e => { if (e.pointerId === id) id = null; };
-    swipeArea.addEventListener('pointerup', end);
-    swipeArea.addEventListener('pointercancel', end);
+    const release = event => { if (event.pointerId === activePointer) activePointer = null; };
+    swipeArea.addEventListener('pointerup', release);
+    swipeArea.addEventListener('pointercancel', release);
   }
 };

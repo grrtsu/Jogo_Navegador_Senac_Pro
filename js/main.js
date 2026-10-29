@@ -1,84 +1,109 @@
 /* =========================================================
-   ZYRO — main.js  (Inicialização e laço principal)
+   ZYRO — main.js  (Liga tudo e roda o laço principal)
+
+   É o último script carregado. Ele cria o jogo, liga os
+   módulos uns aos outros e inicia o "game loop": a função
+   que roda ~60 vezes por segundo atualizando e desenhando.
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
-(async function iniciar() {
+// A função se chama sozinha logo que o arquivo carrega (IIFE). É async para poder esperar as fontes.
+(async function startZyro() {
   const canvas = document.getElementById('jogo');
-  // tela de toque: mostra o botão SHIFT e usa gestos
-  const toque = () => document.body.classList.add('toque');
-  if (matchMedia('(pointer: coarse)').matches) toque();
-  window.addEventListener('touchstart', toque, { once: true, passive: true });
+
+  // Tela de toque? Então mostra o botão SHIFT e as dicas de gesto (o CSS usa a classe "toque").
+  const enableTouchMode = () => document.body.classList.add('toque');
+  if (matchMedia('(pointer: coarse)').matches) enableTouchMode();
+  window.addEventListener('touchstart', enableTouchMode, { once: true, passive: true });
+
   const game = new ZYRO.Game();
-  ZYRO.game = game;                       // acesso pelo console (útil nos testes)
+  ZYRO.game = game;          // deixa o jogo acessível no Console (F12): ZYRO.game.player, ZYRO.game.distance...
 
-  // espera as fontes para o texto do canvas sair certo
-  try { await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 1500))]); } catch (e) { /* segue */ }
+  // O canvas desenha texto com a fonte que estiver carregada NA HORA. Esperamos as fontes
+  // (no máximo 1,5 s) para o texto não sair com a fonte padrão.
+  try { await Promise.race([document.fonts.ready, new Promise(resolve => setTimeout(resolve, 1500))]); } catch (error) { /* segue sem esperar */ }
 
+  // Prepara as texturas uma vez só (desenhar texturas a cada quadro seria lento).
   ZYRO.Sprites.init();
   ZYRO.Vehicles.init();
   ZYRO.Renderer.init(canvas, game);
   ZYRO.Renderer.debug = /[?&]debug=1/.test(location.search) || location.hash === '#debug';
   ZYRO.HUD.init(game);
-  ZYRO.Screens.init(game);                // aplica configurações salvas (qualidade, volume…)
+  ZYRO.Screens.init(game);   // aplica as configurações salvas (qualidade, volume…)
   ZYRO.Renderer.resize();
   window.addEventListener('resize', () => ZYRO.Renderer.resize());
 
-  // sons ligados aos eventos do jogo
-  const A = ZYRO.Audio, B = ZYRO.Bus;
-  B.on('core', c => A.play(c.super ? 'superCore' : 'core'));
-  B.on('jump', () => A.play('jump'));
-  B.on('slide', () => A.play('slide'));
-  B.on('lane', () => A.play('lane'));
-  B.on('bump', () => A.play('bump'));
-  B.on('dodge', d => A.play(d.kind === 'near' ? 'near' : 'perfect'));
-  B.on('msg', m => { if (m.kind === 'combo') A.play('combo'); });
-  B.on('shiftReady', () => A.play('shiftReady'));
-  B.on('shiftDenied', () => A.play('shiftDenied'));
-  B.on('shiftStart', () => { A.play('shift'); A.intensity = 1; });
-  B.on('shiftEnd', () => { A.play('shiftEnd'); A.intensity = 0; });
-  B.on('break', () => A.play('break'));
-  B.on('hit', () => A.play('hit'));
-  B.on('shieldHit', () => A.play('shield'));
-  B.on('powerup', () => A.play('powerup'));
-  B.on('record', () => A.play('record'));
-  B.on('zone', () => A.play('zone'));
-  B.on('jetpackStart', () => A.play('jetpack'));
-  B.on('jetpackEnd', () => A.play('jetpackEnd'));
-  B.on('ramp', () => A.play('ramp'));
-  B.on('horn', () => A.play('horn'));
-  B.on('zone', z => ZYRO.Scenery.setZone(z));
+  // ---------- Sons ligados aos eventos do jogo (ver ZYRO.Bus em utils.js) ----------
+  // O game.js só avisa "pulou", "pegou core"... Quem decide o som é este bloco.
+  const Audio = ZYRO.Audio, Bus = ZYRO.Bus;
+  Bus.on('core', core => Audio.play(core.super ? 'superCore' : 'core'));
+  Bus.on('jump', () => Audio.play('jump'));
+  Bus.on('slide', () => Audio.play('slide'));
+  Bus.on('lane', () => Audio.play('lane'));
+  Bus.on('bump', () => Audio.play('bump'));
+  Bus.on('dodge', dodge => Audio.play(dodge.kind === 'near' ? 'near' : 'perfect'));
+  Bus.on('msg', message => { if (message.kind === 'combo') Audio.play('combo'); });
+  Bus.on('shiftReady', () => Audio.play('shiftReady'));
+  Bus.on('shiftDenied', () => Audio.play('shiftDenied'));
+  Bus.on('shiftStart', () => { Audio.play('shift'); Audio.intensity = 1; });
+  Bus.on('shiftEnd', () => { Audio.play('shiftEnd'); Audio.intensity = 0; });
+  Bus.on('break', () => Audio.play('break'));
+  Bus.on('hit', () => Audio.play('hit'));
+  Bus.on('shieldHit', () => Audio.play('shield'));
+  Bus.on('powerup', () => Audio.play('powerup'));
+  Bus.on('record', () => Audio.play('record'));
+  Bus.on('zone', () => Audio.play('zone'));
+  Bus.on('jetpackStart', () => Audio.play('jetpack'));
+  Bus.on('jetpackEnd', () => Audio.play('jetpackEnd'));
+  Bus.on('ramp', () => Audio.play('ramp'));
+  Bus.on('horn', () => Audio.play('horn'));
+  Bus.on('tutorialStep', () => Audio.play('click'));
+  Bus.on('tutorialDone', () => Audio.play('perfect'));
+  Bus.on('zone', zoneIndex => ZYRO.Scenery.setZone(zoneIndex));
 
-  // controles → jogo
+  // ---------- Controles → jogo ----------
   ZYRO.Input.init(document.getElementById('app'));
-  ZYRO.Input.on(a => {
-    A.unlock();
-    if (a === 'pause' || a === 'confirm') return ZYRO.Screens.key(a);
-    if (game.state === 'playing') game.action(a);
+  ZYRO.Input.on(action => {
+    Audio.unlock();
+    if (action === 'pause' || action === 'confirm') return ZYRO.Screens.key(action);   // teclas de menu
+    if (game.state === 'playing') game.action(action);                                // teclas de jogo
   });
-  // primeiro toque em qualquer lugar libera o áudio e começa a música
-  const liberar = () => { A.unlock(); A.startMusic(); window.removeEventListener('pointerdown', liberar); window.removeEventListener('keydown', liberar); };
-  window.addEventListener('pointerdown', liberar); window.addEventListener('keydown', liberar);
+  // Navegadores só deixam tocar som depois de uma interação do usuário: o primeiro toque/tecla libera o áudio.
+  const unlockAudio = () => {
+    Audio.unlock(); Audio.startMusic();
+    window.removeEventListener('pointerdown', unlockAudio); window.removeEventListener('keydown', unlockAudio);
+  };
+  window.addEventListener('pointerdown', unlockAudio); window.addEventListener('keydown', unlockAudio);
 
-  // laço principal: atualiza (se não estiver pausado) e desenha
-  let last = performance.now(), acc = 0, frames = 0;
-  function quadro(agora) {
-    const dt = Math.min((agora - last) / 1000, 0.1);
-    last = agora;
-    if (!ZYRO.freeze) game.update(dt);     // a pausa é tratada dentro do jogo (freeze = usado pelos testes)
+  // ---------- Laço principal (game loop) ----------
+  // requestAnimationFrame chama "frame" antes de cada atualização da tela (~60 vezes por segundo)
+  // e pausa sozinho quando a aba fica escondida (economiza bateria).
+  // dt ("delta time") = segundos desde o quadro anterior. Tudo no jogo é multiplicado por dt,
+  // por isso o jogo roda na MESMA velocidade num monitor de 60 Hz ou de 144 Hz.
+  let lastTime = performance.now(), fpsTime = 0, fpsFrames = 0;
+  function frame(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);   // no máximo 0,1 s: se a aba travou, não "pula" o mundo
+    lastTime = now;
+    if (!ZYRO.freeze) game.update(dt);     // a pausa é tratada dentro do jogo; freeze é usado só pelos testes
     ZYRO.Renderer.draw(dt);
     if (game.state !== 'menu') ZYRO.HUD.update();
-    acc += dt; frames++;
-    if (acc > 0.5) { ZYRO.Renderer.fps = frames / acc; acc = 0; frames = 0; }
-    requestAnimationFrame(quadro);
+    // FPS medido a cada meio segundo (aparece no modo #debug)
+    fpsTime += dt; fpsFrames++;
+    if (fpsTime > 0.5) { ZYRO.Renderer.fps = fpsFrames / fpsTime; fpsTime = 0; fpsFrames = 0; }
+    requestAnimationFrame(frame);
   }
-  requestAnimationFrame(quadro);
+  requestAnimationFrame(frame);
   document.getElementById('carregando').classList.add('saindo');
 
-  // modo de testes automáticos: index.html?testes=1
+  // ---------- Modo de testes automáticos: index.html?testes=1 ----------
+  // Os scripts de teste só são baixados quando pedidos, para não pesar o jogo normal.
   if (/[?&]testes=1/.test(location.search) || location.hash === '#testes') {
     for (const src of ['testes/bot.js', 'testes/testes.js']) {
-      await new Promise(r => { const s = document.createElement('script'); s.src = src; s.onload = r; document.body.appendChild(s); });
+      await new Promise(resolve => {
+        const script = document.createElement('script');
+        script.src = src; script.onload = resolve;
+        document.body.appendChild(script);
+      });
     }
   }
   setTimeout(() => document.getElementById('carregando').remove(), 500);

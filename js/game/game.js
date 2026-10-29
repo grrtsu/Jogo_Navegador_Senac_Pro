@@ -1,38 +1,62 @@
 /* =========================================================
-   ZYRO — game.js  (Estado da partida e regras)
-   Não desenha nada: só simula. O renderer lê o estado e a
-   interface escuta os eventos do ZYRO.Bus.
-   Estados: menu → playing ⇄ paused → dying → over
+   ZYRO — game.js  (A partida: estado e regras)
+
+   Este arquivo NÃO desenha nada: só simula. O renderer lê o
+   estado (posições, altura, power-ups) e desenha; o HUD e o
+   áudio escutam os avisos do ZYRO.Bus. Por isso dá para rodar
+   uma partida inteira sem tela, como fazem os testes.
+
+   Estados da partida:
+     menu → playing ⇄ paused
+                ↓
+              dying (câmera lenta da batida, 0,85 s) → over
+
+   Ideia central do runner: o jogador fica parado em z = 0 e o
+   MUNDO anda. "distance" é quantos metros a pista já rolou.
+   Um obstáculo em d = 300 chega ao jogador quando distance = 300.
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
 ZYRO.Game = class {
   constructor() {
     this.player = new ZYRO.Player();
-    this.gen = new ZYRO.Generator();
+    this.generator = new ZYRO.Generator();   // cria obstáculos, cores e power-ups à frente
     this.score = new ZYRO.Score();
     this.shift = new ZYRO.Shift();
+    this.tutorial = null;                    // ZYRO.Tutorial na primeira corrida, senão null
     this.state = 'menu';
-    this.dist = 0; this.time = 0; this.speed = ZYRO.Progression.baseSpeed(0);
-    this.obstacles = []; this.coins = []; this.powerups = []; this.platforms = [];
-    this.power = { magnet: 0, shield: 0, boost: 0, jetpack: 0 };
+    this.distance = 0;                       // metros percorridos
+    this.time = 0;                           // segundos de jogo (para PERFECT e animações)
+    this.speed = ZYRO.Progression.baseSpeed(0);   // velocidade atual (m/s)
+    this.clearWorld();
     this.zone = 0;
-    this.invuln = 0;
+    this.invulnerable = 0;                   // segundos de proteção (depois do Shield ou do Jetpack)
     this.result = null;
   }
 
+  // listas de tudo que existe na pista
+  clearWorld() {
+    this.obstacles = [];     // { type, lane, d, len } — carros na contramão também têm meetAt e ownSpeed
+    this.coins = [];         // ZYRO CORES { x, y, d, lane, super }
+    this.powerups = [];      // { type, x, y, d, lane }
+    this.platforms = [];     // carros estacionados { lane, ramp, cars, h, d0, d1 }
+    this.power = { magnet: 0, shield: 0, boost: 0, jetpack: 0 };   // segundos restantes de cada power-up
+  }
+
   start() {
-    this.player.reset(); this.gen.reset(); this.score.reset(); this.shift.reset();
-    this.obstacles = []; this.coins = []; this.powerups = []; this.platforms = [];
-    this.power = { magnet: 0, shield: 0, boost: 0, jetpack: 0 };
-    this.dist = 0; this.time = 0; this.zone = 0; this.invuln = 0;
+    this.player.reset(); this.generator.reset(); this.score.reset(); this.shift.reset();
+    this.clearWorld();
+    this.distance = 0; this.time = 0; this.zone = 0; this.invulnerable = 0;
     this.speed = ZYRO.Progression.baseSpeed(0);
     this.prevBest = ZYRO.Storage.stats().melhorPontuacao;
     this.recordAnnounced = false;
     this.hitObstacle = null;
     this.result = null;
     this.state = 'playing';
-    this.gen.update(this);
+    // Primeira corrida: o tutorial monta os primeiros 200 m e o gerador só começa depois dele.
+    this.tutorial = ZYRO.Storage.tutorialDone() ? null : new ZYRO.Tutorial(this);
+    if (this.tutorial) this.generator.startAt(this.tutorial.endDistance);
+    this.generator.update(this);
     ZYRO.Bus.emit('start');
   }
 
@@ -48,78 +72,84 @@ ZYRO.Game = class {
     ZYRO.Bus.emit('resume');
     return true;
   }
-  toMenu() { this.state = 'menu'; this.obstacles = []; this.coins = []; this.powerups = []; this.platforms = []; this.player.reset(); }
+  toMenu() { this.state = 'menu'; this.tutorial = null; this.clearWorld(); this.player.reset(); }
 
-  // comandos do jogador
+  // ---------- Comandos do jogador (vindos do input.js) ----------
   action(name) {
     if (this.state !== 'playing') return false;
-    const p = this.player, t = this.time;
-    let ok = false;
+    // no tutorial, enquanto uma dica espera a ação certa, as outras teclas não fazem nada
+    if (this.tutorial && !this.tutorial.allows(name)) return false;
+    const player = this.player, now = this.time;
+    let accepted = false;
     switch (name) {
-      case 'left':  ok = p.moveLane(-1, t); ZYRO.Bus.emit(ok ? 'lane' : 'bump', -1); break;
-      case 'right': ok = p.moveLane(1, t);  ZYRO.Bus.emit(ok ? 'lane' : 'bump', 1); break;
-      case 'up':    ok = !p.flying && p.jump(t);  if (ok) ZYRO.Bus.emit('jump'); break;   // voando de Jetpack: só troca de faixa
-      case 'down':  ok = !p.flying && p.slide(t); if (ok) ZYRO.Bus.emit('slide'); break;
-      case 'shift': ok = this.shift.activate(); if (!ok) ZYRO.Bus.emit('shiftDenied', this.shift.energy); break;
+      case 'left':  accepted = player.moveLane(-1, now); ZYRO.Bus.emit(accepted ? 'lane' : 'bump', -1); break;
+      case 'right': accepted = player.moveLane(1, now);  ZYRO.Bus.emit(accepted ? 'lane' : 'bump', 1); break;
+      // voando de Jetpack só dá para trocar de faixa
+      case 'up':    accepted = !player.flying && player.jump(now);  if (accepted) ZYRO.Bus.emit('jump'); break;
+      case 'down':  accepted = !player.flying && player.slide(now); if (accepted) ZYRO.Bus.emit('slide'); break;
+      case 'shift': accepted = this.shift.activate(); if (!accepted) ZYRO.Bus.emit('shiftDenied', this.shift.energy); break;
     }
-    return ok;
+    if (accepted && this.tutorial) this.tutorial.onAction(name);
+    return accepted;
   }
 
+  // ---------- Atualização (chamada pelo laço principal a cada quadro) ----------
   update(dt) {
-    dt = Math.min(dt, 0.05);                 // evita saltos se a aba travar
+    dt = Math.min(dt, 0.05);                 // se a aba travou por 2 s, não simulamos 2 s de uma vez
     if (this.state === 'playing') {
-      // em alta velocidade divide o quadro em passos curtos para a colisão nunca "pular" um obstáculo
-      const n = Math.max(1, Math.ceil((this.speed * dt) / ZYRO.CONFIG.MAX_STEP));
-      for (let i = 0; i < n && this.state === 'playing'; i++) this.step(dt / n);
-    }
-    else if (this.state === 'dying') {
-      this.dieT -= dt;
-      this.step(dt * 0.18, true);            // câmera lenta na colisão
-      if (this.dieT <= 0) this.finish();
+      // o tutorial pode deixar o tempo em câmera lenta (ou parado) esperando o jogador agir
+      if (this.tutorial) dt *= this.tutorial.update(dt);
+      // SUB-PASSOS: a 120 m/s, um quadro de 1/60 s anda 2 m — mais que a espessura de uma barreira (0,5 m).
+      // Testando a colisão só no fim do quadro, o jogador "atravessaria" a barreira sem bater (tunneling).
+      // Então dividimos o quadro em passos de no máximo MAX_STEP metros e testamos em cada um.
+      const steps = Math.max(1, Math.ceil((this.speed * dt) / ZYRO.CONFIG.MAX_STEP));
+      for (let i = 0; i < steps && this.state === 'playing'; i++) this.step(dt / steps);
+      if (this.tutorial && this.tutorial.finished) this.tutorial = null;
+    } else if (this.state === 'dying') {
+      this.dyingTimer -= dt;
+      this.step(dt * 0.18, true);            // câmera lenta da batida
+      if (this.dyingTimer <= 0) this.finish();
     } else if (this.state === 'menu') {
-      this.dist += 10 * dt; this.time += dt; // modo vitrine do menu
+      this.distance += 10 * dt; this.time += dt;   // atrás do menu a cidade continua passando ("vitrine")
       this.player.update(dt, 10);
     }
   }
 
+  // Um passo de simulação. A ordem importa: move o mundo → move o jogador → testa colisões → coleta itens.
   step(dt, dying = false) {
-    const C = ZYRO.CONFIG;
+    const CONFIG = ZYRO.CONFIG, player = this.player;
     this.time += dt;
     if (!dying) {
       this.shift.update(dt);
       this.score.update(dt);
-      for (const k in this.power) {
-        if (this.power[k] > 0) {
-          this.power[k] = Math.max(0, this.power[k] - dt);
-          if (this.power[k] === 0) { if (k === 'jetpack') this.endJetpack(); ZYRO.Bus.emit('powerupEnd', k); }
-        }
-      }
-      this.score.boost = this.power.boost > 0;
-      this.invuln = Math.max(0, this.invuln - dt);
+      this.updatePowerTimers(dt);
+      this.invulnerable = Math.max(0, this.invulnerable - dt);
     }
 
-    const target = ZYRO.Progression.baseSpeed(this.dist) * (this.shift.active ? C.SHIFT.speedMult : 1) *
-                   (this.power.jetpack > 0 ? C.POWERUPS.jetpack.speedMult : 1);
-    this.speed = ZYRO.U.lerp(this.speed, target, 1 - Math.pow(0.02, dt));
-    const move = this.speed * dt;
-    this.dist += move;
+    // Velocidade-alvo: a da distância atual, mais rápida com SHIFT e com Jetpack.
+    // Em vez de pular direto para o alvo, chegamos nele aos poucos (lerp) para a aceleração ser suave.
+    const targetSpeed = ZYRO.Progression.baseSpeed(this.distance) *
+                        (this.shift.active ? CONFIG.SHIFT.speedMult : 1) *
+                        (this.power.jetpack > 0 ? CONFIG.POWERUPS.jetpack.speedMult : 1);
+    this.speed = ZYRO.Utils.lerp(this.speed, targetSpeed, 1 - Math.pow(0.02, dt));
+    const metersThisStep = this.speed * dt;
+    this.distance += metersThisStep;
     this.moveTraffic();
-    const p = this.player;
+
     if (this.power.jetpack > 0) this.flyJetpack(dt);
-    const prevFloor = p.floor;
-    p.update(dt, this.speed, this.floorAt(p.x, this.dist, p.y));
+    const floorBefore = player.floor;
+    player.update(dt, this.speed, this.floorAt(player.x, this.distance, player.y));
     if (dying) return;
-    if (prevFloor === 0 && p.floor > 0 && !p.jumping) ZYRO.Bus.emit('ramp');   // começou a subir a rampa
+    if (floorBefore === 0 && player.floor > 0 && !player.jumping) ZYRO.Bus.emit('ramp');   // começou a subir uma rampa
 
-    this.score.addDistance(move);
+    this.score.addDistance(metersThisStep);
+    const zoneIndex = ZYRO.Progression.zoneIndex(this.distance);
+    if (zoneIndex !== this.zone) { this.zone = zoneIndex; ZYRO.Bus.emit('zone', zoneIndex); }
 
-    const zi = ZYRO.Progression.zoneIndex(this.dist);
-    if (zi !== this.zone) { this.zone = zi; ZYRO.Bus.emit('zone', zi); }
-
-    this.gen.update(this);
+    this.generator.update(this);
     this.checkObstacles();
     if (this.state === 'playing') this.checkPlatforms();
-    if (this.state !== 'playing') return;
+    if (this.state !== 'playing') return;    // bateu: o resto do passo não importa
     ZYRO.Collectibles.updateCores(this, dt);
     ZYRO.Collectibles.updatePowerups(this);
 
@@ -131,176 +161,222 @@ ZYRO.Game = class {
     this.cleanup();
   }
 
-  // ---------- tráfego aéreo na contramão ----------
-  // cada carro tem um ponto de encontro (dm); a posição real vem na direção do jogador
+  // cada power-up é só um cronômetro: maior que 0 = ativo
+  updatePowerTimers(dt) {
+    for (const type in this.power) {
+      if (this.power[type] <= 0) continue;
+      this.power[type] = Math.max(0, this.power[type] - dt);
+      if (this.power[type] === 0) {
+        if (type === 'jetpack') this.endJetpack();
+        ZYRO.Bus.emit('powerupEnd', type);
+      }
+    }
+    this.score.boost = this.power.boost > 0;
+  }
+
+  // ---------- Tráfego aéreo na contramão ----------
+  // Cada carro nasce com um PONTO DE ENCONTRO (meetAt): a distância em que ele vai cruzar com o jogador.
+  // Calcular a posição a partir desse ponto (e não somando a velocidade a cada passo) tem duas vantagens:
+  //  1. o gerador sabe exatamente onde o carro vai estar quando o jogador chegar, e garante uma rota livre;
+  //  2. se o jogador acelera (SHIFT), o encontro continua no mesmo lugar da pista.
+  // Conta: faltam (meetAt − distance) metros para o jogador chegar, o que leva (meetAt − distance) / speed segundos.
+  // Nesse tempo o carro anda ownSpeed × tempo na direção contrária. Então ele está AGORA nessa distância além do encontro.
   moveTraffic() {
-    const p = this.player;
-    for (const o of this.obstacles) {
-      if (!o.v) continue;
-      o.d = o.dm + o.v * (o.dm - this.dist) / Math.max(1, this.speed);
-      // buzina quando um carro vem na faixa do jogador (~1,3 s antes)
-      if (!o.honked && o.lane === p.lane && !p.flying && (o.dm - this.dist) / this.speed < 1.3 && o.dm > this.dist) {
-        o.honked = true; ZYRO.Bus.emit('horn', o);
+    const player = this.player;
+    for (const car of this.obstacles) {
+      if (!car.ownSpeed) continue;            // obstáculo parado
+      const secondsToMeet = (car.meetAt - this.distance) / Math.max(1, this.speed);
+      car.d = car.meetAt + car.ownSpeed * secondsToMeet;
+      // buzina ~1,3 s antes se o carro vem na faixa do jogador
+      if (!car.honked && car.lane === player.lane && !player.flying && secondsToMeet < 1.3 && secondsToMeet > 0) {
+        car.honked = true; ZYRO.Bus.emit('horn', car);
       }
     }
   }
 
-  // ---------- carros estacionados (plataformas) ----------
-  // altura do chão sob o jogador: teto/rampa só conta se ele conseguir "pisar" (não sobe parede)
-  floorAt(x, d, y) {
-    const LW = ZYRO.CONFIG.LANE_W, step = ZYRO.CONFIG.PLATFORM.step;
-    let f = 0;
-    for (const pl of this.platforms) {
-      if (Math.abs(x - pl.lane * LW) > 1.15 || d < pl.d0 || d > pl.d1) continue;
-      const s = ZYRO.Platform.surface(pl, d);
-      if (s <= y + step && s > f) f = s;
+  // ---------- Carros estacionados (plataformas) ----------
+  // Altura do chão sob o jogador. Um teto ou rampa só conta se estiver até stepUp acima dos pés:
+  // assim o jogador SOBE a rampa (que cresce aos poucos) mas não "sobe" a parede da frente de uma van.
+  floorAt(x, d, feetHeight) {
+    const laneWidth = ZYRO.CONFIG.LANE_WIDTH, stepUp = ZYRO.CONFIG.PLATFORM.stepUp;
+    let floor = 0;
+    for (const platform of this.platforms) {
+      if (Math.abs(x - platform.lane * laneWidth) > 1.15 || d < platform.d0 || d > platform.d1) continue;
+      const surface = ZYRO.Platform.surface(platform, d);
+      if (surface <= feetHeight + stepUp && surface > floor) floor = surface;
     }
-    return f;
+    return floor;
   }
 
-  // bater de frente ou de lado num carro estacionado
+  // Bater de frente (ou de lado, trocando de faixa) numa van estacionada.
   checkPlatforms() {
-    const C = ZYRO.CONFIG, p = this.player, LW = C.LANE_W;
-    if (p.flying) return;
-    const pb = p.box();
-    for (const pl of this.platforms) {
-      if (this.dist + pb.z1 < pl.d0 || this.dist + pb.z0 > pl.d1) continue;
-      if (pb.x1 <= pl.lane * LW - 1.1 || pb.x0 >= pl.lane * LW + 1.1) continue;
-      const h = ZYRO.Platform.surface(pl, Math.min(pl.d1, this.dist + pb.z1));
-      if (p.y >= h - C.PLATFORM.step) continue;          // em cima do teto ou subindo a rampa
-      const pop = () => { p.y = pl.h; p.vy = 0; p.jumping = false; };   // protegido: é lançado para o teto
-      if (this.shift.active || this.shift.grace > 0 || this.invuln > 0) { pop(); ZYRO.Bus.emit('ramp'); }
-      else if (this.power.shield > 0) {
-        this.power.shield = 0; this.invuln = 1; pop();
-        ZYRO.Bus.emit('shieldHit', { d: this.dist, type: 'C' }); ZYRO.Bus.emit('powerupEnd', 'shield');
-      } else { this.die({ type: 'C', lane: pl.lane, d: pl.d0, len: 0 }); return; }
-    }
-  }
+    const CONFIG = ZYRO.CONFIG, player = this.player, laneWidth = CONFIG.LANE_WIDTH;
+    if (player.flying) return;
+    const playerBox = player.box();
+    for (const platform of this.platforms) {
+      // longe na pista ou em outra faixa: pula
+      if (this.distance + playerBox.z1 < platform.d0 || this.distance + playerBox.z0 > platform.d1) continue;
+      if (playerBox.x1 <= platform.lane * laneWidth - 1.1 || playerBox.x0 >= platform.lane * laneWidth + 1.1) continue;
+      const surfaceHere = ZYRO.Platform.surface(platform, Math.min(platform.d1, this.distance + playerBox.z1));
+      if (player.y >= surfaceHere - CONFIG.PLATFORM.stepUp) continue;     // em cima do teto ou subindo a rampa: tudo certo
 
-  // ---------- Jetpack ----------
-  startJetpack() {
-    const C = ZYRO.CONFIG, J = C.POWERUPS.jetpack, p = this.player, U = ZYRO.U;
-    p.flying = true; p.sliding = false; p.jumping = false; p.vy = 0;
-    const v = ZYRO.Progression.baseSpeed(this.dist) * J.speedMult * (this.shift.active ? C.SHIFT.speedMult : 1);
-    const land = this.dist + v * J.dur;
-    // trecho de pouso sem obstáculos (no gerador e no que já existe)
-    const from = land - v * 2.4, to = land + v * 1.5;
-    this.gen.quiet = { from, to };
-    this.obstacles = this.obstacles.filter(o => { const dm = o.dm ?? o.d; return dm < from || dm > to; });
-    // trilha de cores no céu, em zigue-zague entre as faixas
-    let lane = p.lane, n = 0;
-    for (let cd = this.dist + 18; cd < land - v * J.landing; cd += 4, n++) {
-      if (n % 8 === 7) lane = lane === 0 ? U.pick([-1, 1]) : 0;
-      this.coins.push({ x: ZYRO.Lanes.x(lane), y: J.height + 0.9, d: cd, lane, super: n % 40 === 39, sky: true });
-    }
-    ZYRO.Bus.emit('jetpackStart');
-  }
-  flyJetpack(dt) {
-    const J = ZYRO.CONFIG.POWERUPS.jetpack, p = this.player, rem = this.power.jetpack;
-    const floor = this.floorAt(p.x, this.dist, 99);
-    const k = rem > J.landing ? 1 : ZYRO.U.easeInOut(rem / J.landing);   // desce suavemente no fim
-    const target = floor + (J.height - floor) * k;
-    p.y = ZYRO.U.lerp(p.y, target, 1 - Math.pow(0.003, dt));
-  }
-  endJetpack() {
-    const p = this.player;
-    p.flying = false; p.jumping = p.y > 0.05; p.vy = 0;
-    this.invuln = Math.max(this.invuln, ZYRO.CONFIG.POWERUPS.jetpack.grace);
-    ZYRO.Bus.emit('jetpackEnd');
-  }
-
-  checkObstacles() {
-    const C = ZYRO.CONFIG, p = this.player;
-    for (const o of this.obstacles) {
-      if (o.broken) continue;
-      const z0 = o.d - this.dist;
-      if (p.flying) { if (z0 <= 0) o.evaluated = true; continue; }   // voando por cima de tudo
-      if (z0 > 3 || z0 + o.len < -1) {
-        if (!o.evaluated && z0 + o.len < -1) o.evaluated = true;
-        continue;
-      }
-      const hit = ZYRO.Collision.hits(p, o, this.dist);
-      if (!o.evaluated && z0 <= 0) {          // frente do obstáculo chegou ao jogador
-        o.evaluated = true;
-        if (!hit) this.evaluateDodge(o);
-      }
-      if (!hit) continue;
-      if (this.shift.active) {                  // ZYRO SHIFT: atravessa e ganha pontos
-        o.broken = true;
-        const pts = this.score.add(C.SCORE.shiftBreak);
-        ZYRO.Bus.emit('break', o);
-        ZYRO.Bus.emit('float', { text: '+' + pts, color: '#FFD447', d: o.d, x: p.x, y: 2.2 });
-      } else if (this.shift.grace > 0 || this.invuln > 0) {
-        // proteção curta: ignora
+      // bateu. Com proteção, em vez de morrer o Zyro é jogado para o teto.
+      const popOntoRoof = () => { player.y = platform.h; player.verticalSpeed = 0; player.jumping = false; };
+      if (this.shift.active || this.shift.grace > 0 || this.invulnerable > 0) {
+        popOntoRoof(); ZYRO.Bus.emit('ramp');
       } else if (this.power.shield > 0) {
-        this.power.shield = 0;
-        o.broken = true;
-        this.invuln = 1;
-        ZYRO.Bus.emit('shieldHit', o);
-        ZYRO.Bus.emit('powerupEnd', 'shield');
+        this.power.shield = 0; this.invulnerable = 1; popOntoRoof();
+        ZYRO.Bus.emit('shieldHit', { d: this.distance, type: 'C' }); ZYRO.Bus.emit('powerupEnd', 'shield');
       } else {
-        this.die(o);
+        this.die({ type: 'C', lane: platform.lane, d: platform.d0, len: 0 });
         return;
       }
     }
   }
 
-  // Desvio perfeito: ação certa pouco antes do obstáculo chegar
-  evaluateDodge(o) {
+  // ---------- Jetpack ----------
+  startJetpack() {
+    const CONFIG = ZYRO.CONFIG, JETPACK = CONFIG.POWERUPS.jetpack, player = this.player;
+    player.flying = true; player.sliding = false; player.jumping = false; player.verticalSpeed = 0;
+
+    // Onde ele vai pousar? velocidade de voo × duração.
+    const flySpeed = ZYRO.Progression.baseSpeed(this.distance) * JETPACK.speedMult * (this.shift.active ? CONFIG.SHIFT.speedMult : 1);
+    const landingAt = this.distance + flySpeed * JETPACK.duration;
+    // Pousar em cima de um obstáculo seria injusto: limpamos um trecho em volta do pouso,
+    // tanto no que já existe quanto no que o gerador ainda vai criar (generator.quiet).
+    const quietFrom = landingAt - flySpeed * 2.4, quietTo = landingAt + flySpeed * 1.5;
+    this.generator.quiet = { from: quietFrom, to: quietTo };
+    this.obstacles = this.obstacles.filter(obstacle => {
+      const where = obstacle.meetAt ?? obstacle.d;    // carro na contramão: vale onde ele vai cruzar
+      return where < quietFrom || where > quietTo;
+    });
+
+    // Trilha de cores no céu, a cada 4 m, trocando de faixa a cada 8 cores (zigue-zague).
+    let lane = player.lane, count = 0;
+    for (let coreD = this.distance + 18; coreD < landingAt - flySpeed * JETPACK.landing; coreD += 4, count++) {
+      if (count % 8 === 7) lane = lane === 0 ? ZYRO.Utils.pick([-1, 1]) : 0;
+      this.coins.push({ x: ZYRO.Lanes.x(lane), y: JETPACK.height + 0.9, d: coreD, lane, super: count % 40 === 39, sky: true });
+    }
+    ZYRO.Bus.emit('jetpackStart');
+  }
+
+  // Durante o voo: fica na altura do voo; nos últimos segundos desce suave até o chão (ou o teto de uma van).
+  flyJetpack(dt) {
+    const JETPACK = ZYRO.CONFIG.POWERUPS.jetpack, player = this.player, timeLeft = this.power.jetpack;
+    const ground = this.floorAt(player.x, this.distance, 99);      // 99 = "de cima": qualquer superfície serve
+    const heightShare = timeLeft > JETPACK.landing ? 1 : ZYRO.Utils.easeInOut(timeLeft / JETPACK.landing);
+    const targetHeight = ground + (JETPACK.height - ground) * heightShare;
+    player.y = ZYRO.Utils.lerp(player.y, targetHeight, 1 - Math.pow(0.003, dt));
+  }
+
+  endJetpack() {
+    const player = this.player;
+    player.flying = false; player.jumping = player.y > 0.05; player.verticalSpeed = 0;   // se ainda está no ar, cai
+    this.invulnerable = Math.max(this.invulnerable, ZYRO.CONFIG.POWERUPS.jetpack.grace);
+    ZYRO.Bus.emit('jetpackEnd');
+  }
+
+  // ---------- Obstáculos ----------
+  checkObstacles() {
+    const CONFIG = ZYRO.CONFIG, player = this.player;
+    for (const obstacle of this.obstacles) {
+      if (obstacle.broken) continue;
+      const z0 = obstacle.d - this.distance;                  // metros até a frente do obstáculo
+      if (player.flying) { if (z0 <= 0) obstacle.evaluated = true; continue; }   // voando por cima de tudo
+      // longe demais (à frente ou atrás): nem testa a colisão (economiza processamento)
+      if (z0 > 3 || z0 + obstacle.len < -1) {
+        if (!obstacle.evaluated && z0 + obstacle.len < -1) obstacle.evaluated = true;
+        continue;
+      }
+      const hit = ZYRO.Collision.hits(player, obstacle, this.distance);
+      if (!obstacle.evaluated && z0 <= 0) {                   // a frente do obstáculo acabou de chegar ao jogador
+        obstacle.evaluated = true;
+        if (!hit) this.evaluateDodge(obstacle);
+      }
+      if (!hit) continue;
+
+      if (this.shift.active) {                                 // ZYRO SHIFT: atravessa e ganha pontos
+        obstacle.broken = true;
+        const pts = this.score.add(CONFIG.SCORE.shiftBreak);
+        ZYRO.Bus.emit('break', obstacle);
+        ZYRO.Bus.emit('float', { text: '+' + pts, color: '#FFD447', d: obstacle.d, x: player.x, y: 2.2 });
+      } else if (this.shift.grace > 0 || this.invulnerable > 0) {
+        // proteção curta depois do SHIFT, do Shield ou do Jetpack: ignora
+      } else if (this.power.shield > 0) {                      // Shield: aguenta uma batida
+        this.power.shield = 0;
+        obstacle.broken = true;
+        this.invulnerable = 1;
+        ZYRO.Bus.emit('shieldHit', obstacle);
+        ZYRO.Bus.emit('powerupEnd', 'shield');
+      } else {
+        this.die(obstacle);
+        return;
+      }
+    }
+  }
+
+  // Desvio perfeito: fez a ação certa POUCO antes do obstáculo chegar (ver PERFECT_WINDOW no config).
+  evaluateDodge(obstacle) {
     if (this.shift.active) return;
-    const C = ZYRO.CONFIG, p = this.player, a = p.lastAction;
-    const since = this.time - a.time;
+    const CONFIG = ZYRO.CONFIG, player = this.player, last = player.lastAction;
+    const secondsSince = this.time - last.time;
     let kind = null;
-    if (ZYRO.Collision.blocksLane(o, p.lane)) {
-      // está na faixa do obstáculo e não bateu → pulou ou deslizou
-      const right = (o.type === 'L' && a.type === 'jump') || ((o.type === 'H' || o.type === 'A') && a.type === 'slide');
-      if (right && since <= C.PERFECT_WINDOW + 0.1) kind = since <= C.NEAR_MISS_WINDOW ? 'near' : 'perfect';
-    } else if (a.type === 'lane' && ZYRO.Collision.blocksLane(o, a.fromLane) && since <= C.PERFECT_WINDOW) {
-      kind = since <= C.NEAR_MISS_WINDOW ? 'near' : 'perfect';
+    if (ZYRO.Collision.blocksLane(obstacle, player.lane)) {
+      // está na faixa do obstáculo e não bateu → passou por cima (pulo) ou por baixo (deslize)
+      const rightMove = (obstacle.type === 'L' && last.type === 'jump') ||
+                        ((obstacle.type === 'H' || obstacle.type === 'A') && last.type === 'slide');
+      if (rightMove && secondsSince <= CONFIG.PERFECT_WINDOW + 0.1) kind = secondsSince <= CONFIG.NEAR_MISS_WINDOW ? 'near' : 'perfect';
+    } else if (last.type === 'lane' && ZYRO.Collision.blocksLane(obstacle, last.fromLane) && secondsSince <= CONFIG.PERFECT_WINDOW) {
+      // saiu da faixa do obstáculo em cima da hora
+      kind = secondsSince <= CONFIG.NEAR_MISS_WINDOW ? 'near' : 'perfect';
     }
     if (!kind) return;
-    const r = this.score.dodge(kind);
-    this.shift.gain(kind === 'near' ? C.SHIFT.gain.nearMiss : C.SHIFT.gain.perfect);
-    ZYRO.Bus.emit('float', { text: '+' + r.pts, color: kind === 'near' ? '#00D9FF' : '#42EDAA', d: this.dist + 0.5, x: p.x, y: 2.4 });
-    if (r.newMult) ZYRO.Bus.emit('msg', { text: `COMBO x${r.newMult}!`, kind: 'combo' });
+
+    const result = this.score.dodge(kind);
+    this.shift.gain(kind === 'near' ? CONFIG.SHIFT.gain.nearMiss : CONFIG.SHIFT.gain.perfect);
+    ZYRO.Bus.emit('float', { text: '+' + result.pts, color: kind === 'near' ? '#00D9FF' : '#42EDAA', d: this.distance + 0.5, x: player.x, y: 2.4 });
+    if (result.newMult) ZYRO.Bus.emit('msg', { text: `COMBO x${result.newMult}!`, kind: 'combo' });
     else ZYRO.Bus.emit('msg', { text: kind === 'near' ? 'AWESOME!' : 'PERFECT!', kind });
     ZYRO.Bus.emit('dodge', { kind, mult: this.score.comboMult });
   }
 
-  collectCore(c) {
-    const C = ZYRO.CONFIG;
-    const bonus = this.score.core(c.super);
-    this.shift.gain(c.super ? C.SHIFT.gain.superCore : C.SHIFT.gain.core);
-    ZYRO.Bus.emit('core', c);
-    if (c.super) ZYRO.Bus.emit('float', { text: '+' + C.SCORE.superCore * this.score.mult, color: '#00D9FF', d: c.d, x: c.x, y: c.y + 0.6 });
-    if (bonus) {
+  // ---------- Itens ----------
+  collectCore(core) {
+    const CONFIG = ZYRO.CONFIG;
+    const streakBonus = this.score.core(core.super);
+    this.shift.gain(core.super ? CONFIG.SHIFT.gain.superCore : CONFIG.SHIFT.gain.core);
+    ZYRO.Bus.emit('core', core);
+    if (core.super) ZYRO.Bus.emit('float', { text: '+' + CONFIG.SCORE.superCore * this.score.mult, color: '#00D9FF', d: core.d, x: core.x, y: core.y + 0.6 });
+    if (streakBonus) {
       ZYRO.Bus.emit('msg', { text: 'AWESOME!', kind: 'near' });
-      ZYRO.Bus.emit('float', { text: '+' + bonus, color: '#FFD447', d: this.dist + 1, x: this.player.x, y: 2.6 });
+      ZYRO.Bus.emit('float', { text: '+' + streakBonus, color: '#FFD447', d: this.distance + 1, x: this.player.x, y: 2.6 });
     }
   }
 
   activatePowerup(type) {
-    const P = ZYRO.CONFIG.POWERUPS;
-    const was = this.power[type] > 0;
-    this.power[type] = P[type].dur;
-    if (type === 'jetpack' && !was) this.startJetpack();
+    const POWERUPS = ZYRO.CONFIG.POWERUPS, info = ZYRO.POWERUP_TYPES[type];
+    const wasActive = this.power[type] > 0;
+    this.power[type] = POWERUPS[type].duration;        // pegar de novo renova o tempo
+    if (type === 'jetpack' && !wasActive) this.startJetpack();
     ZYRO.Bus.emit('powerup', type);
-    ZYRO.Bus.emit('msg', { text: ZYRO.POWERUP_TYPES[type].nome + '!', kind: 'power', color: ZYRO.POWERUP_TYPES[type].cor });
+    ZYRO.Bus.emit('msg', { text: info.nome + '!', kind: 'power', color: info.cor });
   }
 
-  die(o) {
+  // ---------- Fim de corrida ----------
+  die(obstacle) {
     this.state = 'dying';
-    this.dieT = 0.85;
-    this.hitObstacle = o;
+    this.dyingTimer = 0.85;
+    this.hitObstacle = obstacle;               // a tela de Game Over diz em que você bateu
     this.score.streak = 0;
-    ZYRO.Bus.emit('hit', o);
+    ZYRO.Bus.emit('hit', obstacle);
   }
 
   finish() {
-    const s = this.score;
+    const score = this.score;
     const run = {
-      pontos: Math.floor(s.points), distancia: Math.floor(this.dist), cores: s.cores,
-      combo: s.bestMult, zona: ZYRO.CONFIG.ZONES[this.zone].name, obstaculo: this.hitObstacle && this.hitObstacle.type
+      pontos: Math.floor(score.points), distancia: Math.floor(this.distance), cores: score.cores,
+      combo: score.bestMult, zona: ZYRO.CONFIG.ZONES[this.zone].name,
+      obstaculo: this.hitObstacle && this.hitObstacle.type
     };
     const saved = ZYRO.Storage.registerRun(run);
     this.result = { ...run, ...saved };
@@ -308,11 +384,16 @@ ZYRO.Game = class {
     ZYRO.Bus.emit('gameover', this.result);
   }
 
+  // Remove o que ficou para trás. Sem isso as listas cresceriam para sempre e o jogo ficaria lento.
   cleanup() {
-    const d = this.dist - 10;
-    if (this.obstacles.length > 30 || (this.obstacles.length && this.obstacles[0].d + 3 < d)) this.obstacles = this.obstacles.filter(o => o.d + o.len > d);
-    if (this.platforms.length && this.platforms[0].d1 < d) this.platforms = this.platforms.filter(pl => pl.d1 > d);
-    if (this.coins.length > 120 || (this.coins.length && this.coins[0].d < d)) this.coins = this.coins.filter(c => c.d > d && !(c.taken && c.d < this.dist));
-    if (this.powerups.length && this.powerups[0].d < d) this.powerups = this.powerups.filter(u => u.d > d);
+    const behind = this.distance - 10;
+    if (this.obstacles.length > 30 || (this.obstacles.length && this.obstacles[0].d + 3 < behind)) {
+      this.obstacles = this.obstacles.filter(obstacle => obstacle.d + obstacle.len > behind);
+    }
+    if (this.platforms.length && this.platforms[0].d1 < behind) this.platforms = this.platforms.filter(platform => platform.d1 > behind);
+    if (this.coins.length > 120 || (this.coins.length && this.coins[0].d < behind)) {
+      this.coins = this.coins.filter(core => core.d > behind && !(core.taken && core.d < this.distance));
+    }
+    if (this.powerups.length && this.powerups[0].d < behind) this.powerups = this.powerups.filter(item => item.d > behind);
   }
 };

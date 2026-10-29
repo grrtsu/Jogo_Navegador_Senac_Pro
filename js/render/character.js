@@ -4,6 +4,18 @@
    Figma: cabelo espetado azul com pontas rosa, faixa laranja,
    jaqueta roxa com emblema Z, tênis com propulsores.
    Poses misturadas por peso: corrida, pulo, deslize.
+
+   Como desenhar um personagem que muda de tamanho com a
+   distância? Desenhamos SEMPRE no mesmo "papel" de 200 × 260
+   unidades (as coordenadas que você vê no código), e antes
+   aplicamos ctx.scale para converter unidades em pixels.
+   131 unidades = 1 metro do mundo.
+
+   Misturar poses: jump e slide vão de 0 a 1 (o renderer
+   suaviza). A corrida pesa o que sobra: run = 1 − jump − slide.
+   Cada parte do corpo calcula sua posição como uma média
+   ponderada das poses: assim ele "transiciona" em vez de pular
+   de uma pose para outra.
    ========================================================= */
 window.ZYRO = window.ZYRO || {};
 
@@ -11,15 +23,16 @@ ZYRO.Character = {
   UNITS_PER_M: 131,           // unidades do desenho por metro
   SKIN: '#C98663', SKIN_D: '#A86A4B', LEG: '#3D2F94', DARK: '#101A35',
 
-  // pose: {phase, jump(0..1), slide(0..1), tilt, shift, hit, land, alpha, blink}
+  // (sx, sy) = onde ficam os pés na tela · pxPerM = escala da câmera ali
+  // pose: {phase, jump(0..1), slide(0..1), tilt, shift, hit, land, alpha, jetpack}
   draw(ctx, sx, sy, pxPerM, pose) {
-    const k = pxPerM / this.UNITS_PER_M;
-    ctx.save();
-    ctx.translate(sx, sy);
-    ctx.scale(k, k);
-    if (pose.hit) ctx.rotate(-0.18 * pose.hit);
-    ctx.rotate(pose.tilt * 0.24);
-    ctx.translate(-100, -252);
+    const k = pxPerM / this.UNITS_PER_M;   // quantos pixels vale 1 unidade do desenho
+    ctx.save();                            // save/restore: tudo que mudarmos (escala, rotação) volta ao normal no fim
+    ctx.translate(sx, sy);                 // a origem vai para os pés...
+    ctx.scale(k, k);                       // ...o papel é escalado...
+    if (pose.hit) ctx.rotate(-0.18 * pose.hit);   // ...inclina para trás na batida...
+    ctx.rotate(pose.tilt * 0.24);                 // ...inclina para o lado na troca de faixa...
+    ctx.translate(-100, -252);                    // ...e o ponto (100, 252) do papel (entre os pés) fica na origem
     if (pose.alpha !== undefined) ctx.globalAlpha = pose.alpha;
     this.body(ctx, pose);
     ctx.restore();
@@ -27,8 +40,9 @@ ZYRO.Character = {
 
   body(ctx, P) {
     const C = ZYRO.CONFIG.COLORS, me = this;
+    // J = peso do pulo, S = peso do deslize, R = peso da corrida (o que sobra)
     const J = P.jump, S = P.slide, R = Math.max(0, 1 - J - S);
-    const ph = P.phase;
+    const ph = P.phase;                 // ângulo do ciclo das pernas (cresce com o tempo)
     const bob = -Math.abs(Math.sin(ph)) * 6 * R + P.land * 7;
     const bodyDy = S * 58 + bob;
     const flick = 0.85 + Math.random() * 0.3;
