@@ -1,0 +1,266 @@
+/* =========================================================
+   ZYRO — telas.css
+   Layout das 7 telas + HUD, com versões para celular.
+   ========================================================= */
+#app { position: fixed; inset: 0; overflow: hidden; }
+#jogo { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+#flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 5; }
+#flash.ativo { animation: flash .35s ease-out; }
+@keyframes flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+.tela { position: absolute; inset: 0; z-index: 10; }
+.tela.entrando { animation: tela-entra .22s ease-out; }
+@keyframes tela-entra { from { opacity: 0; transform: scale(1.02); } }
+
+/* ---------- HUD ---------- */
+.hud { position: absolute; inset: 0; z-index: 8; pointer-events: none; padding: max(var(--margem-hud), env(safe-area-inset-top)) max(var(--margem-hud), env(safe-area-inset-right)) max(var(--margem-hud), env(safe-area-inset-bottom)) max(var(--margem-hud), env(safe-area-inset-left)); }
+.hud button { pointer-events: auto; }
+.hud__topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.hud__grupo { display: flex; gap: 10px; align-items: center; }
+.hud__status { display: flex; gap: 8px; align-items: center; margin-top: 10px; min-height: 36px; }
+.mensagens { position: absolute; left: 50%; top: 27%; transform: translateX(-50%); pointer-events: none; display: grid; place-items: center; }
+.hud__base { position: absolute; left: max(var(--margem-hud), env(safe-area-inset-left)); right: max(var(--margem-hud), env(safe-area-inset-right)); bottom: max(var(--margem-hud), env(safe-area-inset-bottom)); display: flex; justify-content: space-between; align-items: flex-end; }
+body.toque .btn-shift { display: block; }
+body.toque .barra-shift { width: min(300px, 46vw); }
+
+/* ---------- TELA 1 — MENU ---------- */
+.tela-menu__degrade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(16, 26, 53, .95) 0%, rgba(16, 26, 53, .7) 42%, rgba(16, 26, 53, 0) 70%); }
+.tela-menu__coluna { position: absolute; left: clamp(20px, 5.6vw, 80px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: clamp(16px, 3.4vh, 30px); width: min(400px, 42vw); }
+.menu-botoes { display: flex; flex-direction: column; gap: clamp(10px, 1.8vh, 16px); }
+.menu-botoes .btn { width: 100%; }
+.tela-menu__heroi { position: absolute; right: clamp(0px, 6vw, 110px); bottom: -6px; height: min(88vh, 640px); aspect-ratio: 320 / 440; animation: flutua 2.6s ease-in-out infinite; }
+.tela-menu__heroi svg { width: 100%; height: 100%; stroke: none; overflow: visible; }
+.tela-menu__heroi .propulsor { animation: propulsor .25s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+.tela-menu__heroi .linhas-vel { animation: linhas .6s linear infinite; }
+@keyframes flutua { 50% { transform: translateY(-12px); } }
+@keyframes propulsor { to { transform: scale(1.25); opacity: .7; } }
+@keyframes linhas { from { transform: translateX(10px); opacity: .2; } to { transform: translateX(-20px); opacity: .7; } }
+.tela-menu__topo { position: absolute; top: 24px; right: 24px; display: flex; gap: 10px; align-items: center; }
+.selo-senac { position: absolute; left: clamp(20px, 5.6vw, 80px); bottom: 22px; margin: 0; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: var(--raio-pilula); background: rgba(16, 26, 53, .8); font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--texto-secundario); }
+.selo-senac svg { color: var(--amarelo-recompensa); }
+.dica-girar { display: none; }
+
+/* Logo */
+.logo { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.logo__marca { display: flex; align-items: center; gap: 12px; }
+.logo__simbolo { display: block; width: clamp(48px, 6vw, 76px); aspect-ratio: 1; filter: drop-shadow(0 6px 0 rgba(121, 85, 255, .6)); }
+.logo__simbolo svg { width: 100%; height: 100%; stroke: none; }
+.logo__nome {
+  margin: 0; font-family: var(--fonte-titulo); font-style: italic; font-weight: 900; font-size: clamp(64px, 9.4vw, 124px); line-height: .9; letter-spacing: -.02em;
+  background: linear-gradient(180deg, #fff 15%, #7FEBFF 55%, var(--azul-eletrico)); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(2px 0 0 var(--azul-escuro)) drop-shadow(-2px 0 0 var(--azul-escuro)) drop-shadow(0 2px 0 var(--azul-escuro)) drop-shadow(0 -2px 0 var(--azul-escuro))
+          drop-shadow(0 6px 0 var(--roxo-vibrante)) drop-shadow(0 0 22px rgba(255, 79, 191, .5)); padding-right: .08em;
+}
+.logo__slogan { margin: 0; padding: 6px 16px; border-radius: 8px; background: linear-gradient(90deg, var(--rosa-neon), var(--laranja-energetico)); font-weight: 700; font-size: clamp(11px, 1.15vw, 15px); letter-spacing: .1em; }
+
+/* ---------- Telas cheias (Como jogar, Recordes, Configurações) ---------- */
+.tela-cheia { display: flex; flex-direction: column; background: rgba(16, 26, 53, .72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: max(20px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+.tela__cabecalho { display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 12px; text-align: center; }
+.titulo-bloco p { margin: 6px 0 0; color: var(--texto-secundario); }
+.tela__corpo { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 4px; display: flex; flex-direction: column; align-items: center; gap: 20px; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.tela__rodape { display: flex; justify-content: center; align-items: center; gap: 20px; position: relative; padding-top: 6px; }
+.tela__rodape .atalho { color: var(--texto-secundario); font-size: 11px; font-weight: 700; letter-spacing: .1em; }
+.tela__rodape .btn + .atalho { position: absolute; right: 0; }
+
+/* Como jogar */
+.cards-controle { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; width: min(1160px, 100%); }
+.card-controle { --cor: var(--azul-eletrico); display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px 16px 20px; border-radius: var(--raio-xl); background: rgba(16, 26, 53, .92); border: 2px solid var(--cor); text-align: center; }
+.card-controle .demo { width: 100%; aspect-ratio: 234 / 150; height: auto; border-radius: var(--raio-lg); background: color-mix(in srgb, var(--cor) 16%, #101A35); }
+.card-controle h3 { margin: 0; font-family: var(--fonte-titulo); font-weight: 700; font-size: 19px; }
+.teclas { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.card-controle p { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--texto-secundario); }
+.faixa-info { display: flex; align-items: center; gap: 20px; width: min(1160px, 100%); padding: 16px 24px; border-radius: var(--raio-xl); background: rgba(16, 26, 53, .92); border: 1.5px solid var(--borda); }
+.faixa-info p { margin: 0; flex: 1; line-height: 1.5; }
+.faixa-info b { color: var(--amarelo-recompensa); }
+.faixa-info__core { width: 44px; height: 44px; flex: none; background: radial-gradient(circle, rgba(255, 212, 71, .6), transparent 70%); position: relative; }
+.faixa-info__core::after { content: ""; position: absolute; inset: 6px 12px; background: var(--grad-jogar); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); animation: gira 1.6s linear infinite; }
+@keyframes gira { 50% { transform: scaleX(.15); } }
+.mini-barra { width: 220px; height: 14px; border-radius: 7px; background: var(--superficie-2); overflow: hidden; flex: none; }
+.mini-barra i { display: block; height: 100%; background: var(--grad-shift); animation: enche 3s ease-in-out infinite; }
+@keyframes enche { from { width: 0; } 70%, to { width: 100%; } }
+.obstaculos-legenda { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; width: min(1160px, 100%); }
+.legenda { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--raio-lg); background: rgba(16, 26, 53, .8); }
+.legenda__arte { width: 46px; height: 42px; flex: none; display: grid; place-items: center; }
+.legenda__arte svg { width: 100%; height: 100%; stroke: none; }
+.legenda b { display: block; font-size: 13px; }
+.legenda small { color: var(--verde-sucesso); font-weight: 700; font-size: 12px; }
+
+/* Recordes */
+.cards-estat { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; width: min(1140px, 100%); }
+.tabela { width: min(1140px, 100%); border-radius: 20px; overflow: hidden; border: 1.5px solid var(--borda); }
+.tabela table { width: 100%; border-collapse: collapse; }
+.tabela th { text-align: left; padding: 14px 20px; background: var(--superficie-2); color: var(--azul-eletrico); font-size: 11px; letter-spacing: .1em; }
+.tabela td { padding: 12px 20px; background: rgba(16, 26, 53, .95); border-top: 1px solid rgba(52, 74, 128, .5); font-variant-numeric: tabular-nums; }
+.tabela td.vazio { text-align: center; color: var(--texto-secundario); padding: 26px; }
+
+/* Configurações */
+.painel--lista { width: min(820px, 100%); padding: 8px 32px; }
+.linha-config { display: flex; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--borda); }
+.linha-config:last-child { border-bottom: 0; }
+.linha-config__icone { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--superficie-2); color: var(--azul-eletrico); flex: none; }
+.linha-config__icone svg { font-size: 22px; }
+.linha-config label { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.linha-config label small { color: var(--texto-secundario); font-size: 13px; }
+.linha-config__duplo { display: flex; align-items: center; gap: 16px; }
+
+/* ---------- Sobrepostas: Pausa e Game Over ---------- */
+.tela-sobreposta { display: grid; place-items: center; background: rgba(16, 26, 53, .55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.nota-rodape { position: absolute; bottom: 18px; left: 0; right: 0; margin: 0; text-align: center; color: var(--texto-secundario); font-size: 12px; }
+
+.tela-fim { grid-template-columns: 1fr minmax(0, 660px); padding: 0 clamp(16px, 4.4vw, 56px); gap: 20px; }
+.tela-fim__heroi { align-self: end; justify-self: center; height: min(82vh, 600px); aspect-ratio: 320 / 440; }
+.tela-fim__heroi svg { width: 100%; height: 100%; stroke: none; overflow: visible; }
+.tela-fim__heroi.comemora { animation: comemora .6s ease-in-out infinite alternate; }
+@keyframes comemora { to { transform: translateY(-14px) rotate(-2deg); } }
+.selo-recorde { position: absolute; top: 8%; left: 6%; font-family: var(--fonte-titulo); font-style: italic; font-weight: 900; font-size: clamp(34px, 5vw, 62px);
+  background: linear-gradient(180deg, #fff, var(--laranja-energetico)); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 4px 0 #C2611A) drop-shadow(0 0 18px rgba(255, 157, 67, .7)); transform: rotate(-6deg); animation: carimbo .5s cubic-bezier(.2, .9, .3, 1.4) both; }
+@keyframes carimbo { from { transform: rotate(-6deg) scale(2.2); opacity: 0; } }
+.tela-fim__painel { display: flex; flex-direction: column; gap: 18px; width: 100%; }
+.placar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-radius: 20px; background: rgba(34, 52, 99, .6); border: 2px solid var(--borda); }
+.placar--recorde { background: linear-gradient(90deg, rgba(255, 212, 71, .22), rgba(255, 157, 67, .08)); border-color: var(--amarelo-recompensa); }
+.placar small { display: block; font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--amarelo-recompensa); }
+.placar b { font-family: var(--fonte-titulo); font-style: italic; font-weight: 900; font-size: clamp(40px, 5vw, 60px); line-height: 1.05; font-variant-numeric: tabular-nums; }
+.selo-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--raio-pilula); background: var(--amarelo-recompensa); color: var(--azul-escuro); font-size: 11px; font-weight: 700; letter-spacing: .1em; white-space: nowrap; }
+.estat-grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.estat-grade div { padding: 14px; border-radius: 16px; background: var(--superficie); min-width: 0; }
+.estat-grade small { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--texto-secundario); white-space: nowrap; overflow: hidden; }
+.estat-grade b { display: block; margin-top: 6px; font-family: var(--fonte-titulo); font-style: italic; font-weight: 900; font-size: 22px; white-space: nowrap; }
+.linha-botoes { display: flex; gap: 14px; }
+.linha-botoes .btn:first-child { flex: 1; }
+
+/* Diálogo */
+.dialogo { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(5, 10, 31, .65); }
+.dialogo h3 { margin: 0; font-family: var(--fonte-titulo); font-style: italic; font-weight: 900; font-size: 26px; }
+
+/* Carregando */
+.carregando { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; align-content: center; gap: 18px; background: var(--azul-escuro); transition: opacity .4s; }
+.carregando .logo__simbolo { width: 90px; animation: flutua 1s ease-in-out infinite; }
+.carregando i { width: 180px; height: 8px; border-radius: 4px; background: var(--grad-shift); animation: enche 1s ease-in-out infinite; }
+.carregando.saindo { opacity: 0; pointer-events: none; }
+
+/* ---------- Responsivo ---------- */
+@media (max-width: 1100px) {
+  .cards-controle { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .obstaculos-legenda { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cards-estat { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* celular deitado / telas baixas */
+@media (max-height: 520px) {
+  .hud-item { padding: 4px 12px 4px 4px; gap: 7px; }
+  .hud-item__selo { width: 28px; height: 28px; }
+  .hud-item__selo svg { font-size: 16px; }
+  .hud-item b { font-size: 17px; }
+  .hud-item small { font-size: 8px; }
+  .hud__grupo { gap: 6px; }
+  .btn-icone { width: 44px; height: 44px; }
+  .btn-shift { width: 84px; height: 84px; }
+  .barra-shift { padding: 8px 12px; }
+  .mensagens { top: 30%; }
+  .banner-zona { top: 64px; padding: 6px 24px; }
+  .banner-zona b { font-size: 22px; }
+  .btn { min-height: 48px; font-size: 16px; }
+  .btn--grande { min-height: 58px; font-size: 22px; }
+  .tela-menu__topo { top: 12px; right: 12px; }
+  .tela-menu__coluna { gap: 12px; }
+  .menu-botoes { display: grid; grid-template-columns: 1fr 1fr; }
+  .menu-botoes .btn--grande { grid-column: 1 / -1; }
+  .menu-botoes .btn--fantasma { padding: 0 12px; font-size: 13px; }
+  .menu-botoes .btn--fantasma:last-child { grid-column: 1 / -1; }
+  .selo-senac { bottom: 10px; }
+  .painel { padding: 20px 26px; }
+  .painel--centro { gap: 10px; }
+  .tela-fim__painel { gap: 10px; }
+  .placar { padding: 10px 18px; }
+  .estat-grade div { padding: 10px; }
+  .tela-cheia { padding-top: 10px; }
+  .tela__corpo { padding: 10px 4px; gap: 12px; }
+  .linha-config { padding: 8px 0; }
+}
+/* celular em pé */
+@media (max-width: 640px) {
+  .hud-item--opcional { display: none; }
+  .tela-menu__degrade { background: linear-gradient(180deg, rgba(16, 26, 53, .2) 0%, rgba(16, 26, 53, .85) 52%, rgba(16, 26, 53, .97) 100%); }
+  .tela-menu__heroi { right: 50%; transform: translateX(50%); bottom: auto; top: 13vh; height: 33vh; animation: none; }
+  .tela-menu__coluna { left: 20px; right: 20px; width: auto; top: auto; bottom: 60px; transform: none; align-items: stretch; gap: 14px; }
+  .menu-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .menu-botoes .btn--grande { grid-column: 1 / -1; min-height: 66px; }
+  .menu-botoes .btn--fantasma { padding: 0 10px; font-size: 14px; gap: 8px; }
+  .menu-botoes .btn--fantasma:last-child { grid-column: 1 / -1; }
+  .logo__nome { font-size: 64px; }
+  .hud__topo .hud__grupo:first-child { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .hud-item { padding: 4px 12px 4px 4px; gap: 7px; }
+  .hud-item__selo { width: 28px; height: 28px; }
+  .hud-item__selo svg { font-size: 16px; }
+  .hud-item b { font-size: 17px; }
+  .hud-item small { font-size: 8px; }
+  .btn-icone { width: 44px; height: 44px; }
+  .hud__status { margin-top: 6px; }
+  .banner-zona { top: 120px; }
+  .logo { align-items: center; }
+  .tela-menu__topo { top: 14px; right: 14px; left: 14px; justify-content: space-between; }
+  .selo-senac { left: 50%; transform: translateX(-50%); white-space: nowrap; }
+  .dica-girar { display: inline-flex; align-items: center; gap: 6px; position: absolute; top: 72px; left: 50%; transform: translateX(-50%); margin: 0; padding: 6px 12px; border-radius: 999px; background: rgba(16, 26, 53, .85); font-size: 12px; color: var(--texto-secundario); white-space: nowrap; }
+  .cards-controle { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .card-controle { padding: 10px; gap: 8px; }
+  .card-controle h3 { font-size: 15px; }
+  kbd { min-width: 34px; height: 34px; font-size: 14px; padding: 0 8px; }
+  .faixa-info { flex-direction: column; text-align: center; }
+  .obstaculos-legenda, .cards-estat { grid-template-columns: 1fr 1fr; }
+  .tabela th, .tabela td { padding: 10px; font-size: 13px; }
+  .linha-config { flex-wrap: wrap; }
+  .linha-config label { min-width: 60%; }
+  .slider { width: 100%; }
+  .linha-config__duplo { width: 100%; }
+  .painel--lista { padding: 4px 18px; }
+  .tela-fim { grid-template-columns: 1fr; align-content: center; }
+  .tela-fim__heroi { display: none; }
+  .estat-grade { grid-template-columns: 1fr 1fr; }
+  .linha-botoes { flex-direction: column; }
+  .barra-shift { width: min(230px, 56vw); }
+  .tela__rodape .btn + .atalho { display: none; }
+}
+@media (max-height: 520px) and (min-width: 641px) {
+  .tela-fim__heroi { height: 86vh; }
+  .estat-grade b { font-size: 18px; }
+  .cards-controle { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .card-controle { padding: 8px; gap: 6px; }
+  .card-controle .demo { aspect-ratio: 234 / 110; }
+  .card-controle h3 { font-size: 14px; }
+  kbd { min-width: 32px; height: 30px; font-size: 13px; padding: 0 7px; }
+  .faixa-info { padding: 10px 16px; font-size: 13px; }
+  .obstaculos-legenda { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .legenda { padding: 6px 8px; }
+  .legenda b { font-size: 11px; }
+  .cards-estat { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+  .card-estat { padding: 12px; }
+  .card-estat b { font-size: 22px; }
+}
+
+/* Redução de animações */
+body.reduzir *, body.reduzir *::before, body.reduzir *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+body.reduzir .msg { animation: msg-simples 1s linear forwards !important; }
+@keyframes msg-simples { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+body.reduzir .banner-zona.ativo { animation: msg-simples 2.4s linear forwards !important; }
+
+/* Painel dos testes automáticos (index.html?testes=1) */
+.painel-testes { position: absolute; z-index: 50; inset: 16px; margin: auto; max-width: 900px; max-height: calc(100% - 32px); overflow: auto; padding: 20px 24px; border-radius: 20px; background: #101A35; border: 2px solid var(--borda); box-shadow: var(--sombra-elevacao); touch-action: pan-y; user-select: text; }
+.painel-testes header { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.painel-testes h2 { margin: 0; flex: 1; font-family: var(--fonte-titulo); font-style: italic; font-weight: 900; }
+.painel-testes header b { padding: 6px 14px; border-radius: 999px; }
+.painel-testes .ok { color: var(--verde-sucesso); } .painel-testes .falha { color: var(--vermelho-alerta); }
+.painel-testes header b.ok { background: var(--verde-sucesso); color: var(--azul-escuro); } .painel-testes header b.falha { background: var(--vermelho-alerta); color: #fff; }
+.painel-testes header button { background: none; border: 0; font-size: 22px; cursor: pointer; }
+.painel-testes table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.painel-testes td { padding: 8px; border-top: 1px solid var(--borda); vertical-align: top; }
+.painel-testes td b { display: block; color: #fff; } .painel-testes td small { color: var(--texto-secundario); }
+.painel-testes p { color: var(--texto-secundario); font-size: 13px; }
+
+/* Como jogar cabendo sem rolar em telas de notebook */
+@media (max-height: 860px) and (min-width: 641px) and (min-height: 521px) {
+  .card-controle { padding: 10px 12px 14px; gap: 8px; }
+  .card-controle .demo { aspect-ratio: 234 / 112; }
+  .faixa-info { padding: 10px 20px; }
+  .legenda { padding: 6px 10px; }
+  .tela-cheia .tela__corpo { gap: 12px; padding-top: 12px; }
+}

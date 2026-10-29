@@ -1,0 +1,62 @@
+/* =========================================================
+   ZYRO — tokens.css
+   Design System do Figma convertido em variáveis CSS.
+   ========================================================= */
+@font-face { font-family: "Exo 2"; font-style: italic; font-weight: 900; font-display: swap; src: url("../assets/fonts/exo-2-latin-900-italic.woff2") format("woff2"); }
+@font-face { font-family: "Exo 2"; font-style: italic; font-weight: 800; font-display: swap; src: url("../assets/fonts/exo-2-latin-800-italic.woff2") format("woff2"); }
+@font-face { font-family: "Exo 2"; font-style: italic; font-weight: 700; font-display: swap; src: url("../assets/fonts/exo-2-latin-700-italic.woff2") format("woff2"); }
+@font-face { font-family: "Exo 2"; font-style: normal; font-weight: 700; font-display: swap; src: url("../assets/fonts/exo-2-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 400; font-display: swap; src: url("../assets/fonts/space-grotesk-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 500; font-display: swap; src: url("../assets/fonts/space-grotesk-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Space Grotesk"; font-weight: 700; font-display: swap; src: url("../assets/fonts/space-grotesk-latin-700-normal.woff2") format("woff2"); }
+
+:root {
+  /* Cores principais (roteiro do jogo) */
+  --azul-eletrico: #00D9FF;
+  --roxo-vibrante: #7955FF;
+  --rosa-neon: #FF4FBF;
+  --laranja-energetico: #FF9D43;
+  --amarelo-recompensa: #FFD447;
+  --verde-sucesso: #42EDAA;
+  --azul-escuro: #101A35;
+  --branco: #FFFFFF;
+
+  /* Cores de apoio */
+  --fundo-noite: #0A1128;
+  --superficie: #18264D;
+  --superficie-2: #223463;
+  --borda: #344A80;
+  --texto-secundario: #AEBBE6;
+  --vermelho-alerta: #FF4D6D;
+
+  /* Degradês */
+  --grad-ceu: linear-gradient(180deg, #2E5BFF 0%, #8A6BFF 45%, #FF7EC8 78%, #FFB36B 100%);
+  --grad-shift: linear-gradient(90deg, #00D9FF, #7955FF 50%, #FF4FBF);
+  --grad-jogar: linear-gradient(90deg, #FFD447, #FF9D43);
+
+  /* Tipografia */
+  --fonte-titulo: "Exo 2", "Trebuchet MS", system-ui, sans-serif;
+  --fonte-texto: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Espaçamento (base 4 px) */
+  --espaco-1: 4px; --espaco-2: 8px; --espaco-3: 12px; --espaco-4: 16px;
+  --espaco-6: 24px; --espaco-8: 32px; --espaco-12: 48px; --espaco-16: 64px;
+
+  /* Raios */
+  --raio-sm: 8px; --raio-md: 12px; --raio-lg: 16px; --raio-xl: 24px; --raio-pilula: 999px;
+
+  /* Efeitos */
+  --glow-azul: 0 0 24px rgba(0, 217, 255, .6);
+  --glow-rosa: 0 0 24px rgba(255, 79, 191, .6);
+  --glow-amarelo: 0 0 24px rgba(255, 212, 71, .6);
+  --glow-verde: 0 0 24px rgba(66, 237, 170, .6);
+  --sombra-elevacao: 0 10px 28px rgba(5, 10, 31, .5);
+
+  /* Área segura do HUD */
+  --margem-hud: var(--espaco-6);
+  --transicao: 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+@media (max-width: 900px), (max-height: 500px) {
+  :root { --margem-hud: 12px; }
+}

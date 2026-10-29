@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#101A35">
+  <meta name="description" content="ZYRO — endless runner de 3 faixas em Nova City. Projeto da disciplina Desenvolvimento Front-end (Senac).">
+  <title>ZYRO — O futuro não espera. Corra!</title>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/componentes.css">
+  <link rel="stylesheet" href="css/telas.css">
+</head>
+<body>
+  <!-- Ícones (SVG sprite) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></symbol>
+      <symbol id="i-pausa" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+      <symbol id="i-casa" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></symbol>
+      <symbol id="i-reiniciar" viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
+      <symbol id="i-trofeu" viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z"/><path d="M7 6H4a3 3 0 003 4M17 6h3a3 3 0 01-3 4"/></symbol>
+      <symbol id="i-engrenagem" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol>
+      <symbol id="i-ajuda" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.7-2.5 2-2.5 4M12 17.5v.5"/></symbol>
+      <symbol id="i-som" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 010 6M19 6a8 8 0 010 12"/></symbol>
+      <symbol id="i-mudo" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/></symbol>
+      <symbol id="i-musica" viewBox="0 0 24 24"><path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
+      <symbol id="i-voltar" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></symbol>
+      <symbol id="i-raio" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></symbol>
+      <symbol id="i-ima" viewBox="0 0 24 24"><path d="M6 3v8a6 6 0 0012 0V3"/><path d="M6 3h4v8a2 2 0 004 0V3h4"/><path d="M6 7h4M14 7h4"/></symbol>
+      <symbol id="i-escudo" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></symbol>
+      <symbol id="i-estrela" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></symbol>
+      <symbol id="i-bandeira" viewBox="0 0 24 24"><path d="M5 21V4M5 4h12l-2 4 2 4H5"/></symbol>
+      <symbol id="i-core" viewBox="0 0 24 24"><path d="M12 2l7 10-7 10-7-10z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+      <symbol id="i-gesto" viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 013 0V10m0-1.5a1.5 1.5 0 013 0V11m0-1a1.5 1.5 0 013 0v4.5a6.5 6.5 0 01-6.5 6.5H13a6 6 0 01-4.6-2.2L5 15.5a1.5 1.5 0 012.3-1.9L9 15"/></symbol>
+      <symbol id="i-grafico" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+      <symbol id="i-lixeira" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+      <symbol id="i-foguete" viewBox="0 0 24 24"><path d="M12 2c2.6 2 4 5 4 9v5H8v-5c0-4 1.4-7 4-9z"/><path d="M8 12l-3 3v4h3M16 12l3 3v4h-3M10 20v2M14 20v2M12 8v1"/></symbol>
+      <symbol id="i-celular" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+    </defs>
+  </svg>
+
+  <div id="app">
+    <canvas id="jogo" aria-label="Pista do jogo ZYRO"></canvas>
+    <div id="flash" aria-hidden="true"></div>
+
+    <!-- ===================== HUD (TELA 3 — GAMEPLAY) ===================== -->
+    <div id="hud" class="hud" hidden>
+      <div class="hud__topo">
+        <div class="hud__grupo">
+          <div class="hud-item" data-tipo="pontos"><span class="hud-item__selo"><svg><use href="#i-estrela"/></svg></span><span class="hud-item__txt"><small>PONTOS</small><b id="hud-pontos">000.000</b></span></div>
+          <div class="hud-item" data-tipo="distancia"><span class="hud-item__selo"><svg><use href="#i-bandeira"/></svg></span><span class="hud-item__txt"><small>DISTÂNCIA</small><b id="hud-distancia">0 m</b></span></div>
+        </div>
+        <div class="hud__grupo">
+          <div class="hud-item hud-item--opcional" data-tipo="recorde"><span class="hud-item__selo"><svg><use href="#i-trofeu"/></svg></span><span class="hud-item__txt"><small>RECORDE</small><b id="hud-recorde">0</b></span></div>
+          <div class="hud-item" data-tipo="cores" id="hud-cores-box"><span class="hud-item__selo"><svg><use href="#i-core"/></svg></span><span class="hud-item__txt"><small>CORES</small><b id="hud-cores">0</b></span></div>
+          <button class="btn-icone" id="btn-pausa" aria-label="Pausar (Esc)"><svg><use href="#i-pausa"/></svg></button>
+        </div>
+      </div>
+      <div class="hud__status">
+        <span class="chip-mult" id="hud-mult" hidden>x2</span>
+        <div class="poderes" id="hud-poderes"></div>
+      </div>
+      <div class="mensagens" id="mensagens" aria-live="polite"></div>
+      <div class="banner-zona" id="banner-zona" hidden><small id="banner-zona-num">ZONA 1</small><b id="banner-zona-nome">NOVA CITY</b></div>
+      <div class="hud__base">
+        <div class="barra-shift" id="barra-shift" data-estado="carregando">
+          <div class="barra-shift__topo">
+            <span><svg><use href="#i-raio"/></svg><b id="shift-label">ZYRO SHIFT</b></span>
+            <em id="shift-valor">0%</em>
+          </div>
+          <div class="barra-shift__trilho"><i id="shift-energia"></i><span></span><span></span><span></span><span></span></div>
+        </div>
+        <button class="btn-shift" id="btn-shift" aria-label="Ativar ZYRO SHIFT" data-estado="carregando">
+          <svg viewBox="0 0 104 104" aria-hidden="true"><circle class="btn-shift__fundo" cx="52" cy="52" r="44"/><circle class="btn-shift__trilho" cx="52" cy="52" r="44"/><circle class="btn-shift__anel" id="shift-anel" cx="52" cy="52" r="44"/><path d="M38 38h28L42 66h24" class="btn-shift__z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===================== TELA 1 — MENU PRINCIPAL ===================== -->
+    <section class="tela tela-menu" id="tela-menu" data-tela="menu">
+      <div class="tela-menu__degrade"></div>
+      <div class="tela-menu__heroi" id="menu-heroi"></div>
+      <div class="tela-menu__coluna">
+        <div class="logo" id="logo-menu">
+          <div class="logo__marca"><span class="logo__simbolo"></span><h1 class="logo__nome">ZYRO</h1></div>
+          <p class="logo__slogan">O FUTURO NÃO ESPERA. CORRA!</p>
+        </div>
+        <nav class="menu-botoes">
+          <button class="btn btn--primario btn--grande" data-acao="jogar"><svg><use href="#i-play"/></svg><span>JOGAR</span></button>
+          <button class="btn btn--fantasma" data-acao="como"><svg><use href="#i-ajuda"/></svg><span>COMO JOGAR</span></button>
+          <button class="btn btn--fantasma" data-acao="recordes"><svg><use href="#i-trofeu"/></svg><span>RECORDES</span></button>
+          <button class="btn btn--fantasma" data-acao="config"><svg><use href="#i-engrenagem"/></svg><span>CONFIGURAÇÕES</span></button>
+        </nav>
+      </div>
+      <div class="tela-menu__topo">
+        <div class="hud-item" data-tipo="recorde"><span class="hud-item__selo"><svg><use href="#i-trofeu"/></svg></span><span class="hud-item__txt"><small>RECORDE</small><b id="menu-recorde">0</b></span></div>
+        <div class="hud-item hud-item--opcional" data-tipo="cores"><span class="hud-item__selo"><svg><use href="#i-core"/></svg></span><span class="hud-item__txt"><small>CORES</small><b id="menu-cores">0</b></span></div>
+        <button class="btn-icone" id="btn-som" aria-label="Ligar ou desligar música"><svg><use href="#i-som"/></svg></button>
+      </div>
+      <p class="selo-senac"><svg><use href="#i-raio"/></svg> UM PROJETO PARA O SENAC PRO</p>
+      <p class="dica-girar" id="dica-girar"><svg><use href="#i-celular"/></svg> Dica: gire o celular para ver mais da pista</p>
+    </section>
+
+    <!-- ===================== TELA 2 — COMO JOGAR ===================== -->
+    <section class="tela tela-cheia" id="tela-como" data-tela="como" hidden>
+      <header class="tela__cabecalho">
+        <button class="btn-icone" data-acao="voltar" aria-label="Voltar"><svg><use href="#i-voltar"/></svg></button>
+        <h2 class="titulo-tela">COMO JOGAR</h2>
+        <span class="espaco"></span>
+      </header>
+      <div class="tela__corpo">
+        <div class="cards-controle">
+          <article class="card-controle" style="--cor:#00D9FF"><canvas class="demo" data-demo="lane" width="234" height="150"></canvas><h3>TROCAR DE FAIXA</h3><div class="teclas"><kbd>←</kbd><kbd>→</kbd><kbd>A</kbd><kbd>D</kbd></div><p><svg><use href="#i-gesto"/></svg>Deslize o dedo para os lados</p></article>
+          <article class="card-controle" style="--cor:#42EDAA"><canvas class="demo" data-demo="jump" width="234" height="150"></canvas><h3>PULAR</h3><div class="teclas"><kbd>↑</kbd><kbd>W</kbd></div><p><svg><use href="#i-gesto"/></svg>Deslize o dedo para cima</p></article>
+          <article class="card-controle" style="--cor:#FF4FBF"><canvas class="demo" data-demo="slide" width="234" height="150"></canvas><h3>DESLIZAR</h3><div class="teclas"><kbd>↓</kbd><kbd>S</kbd></div><p><svg><use href="#i-gesto"/></svg>Deslize o dedo para baixo</p></article>
+          <article class="card-controle" style="--cor:#FFD447"><canvas class="demo" data-demo="shift" width="234" height="150"></canvas><h3>ZYRO SHIFT</h3><div class="teclas"><kbd>⇧ SHIFT</kbd></div><p><svg><use href="#i-gesto"/></svg>Toque no botão SHIFT</p></article>
+        </div>
+        <div class="faixa-info">
+          <div class="faixa-info__core"></div>
+          <p><b>Encha a barra:</b> colete ZYRO CORES, desvie no último instante e encadeie desvios perfeitos. Cheia? Ative o <b>SHIFT</b> e atravesse tudo por <b>5 segundos</b>!</p>
+          <div class="mini-barra"><i></i></div>
+        </div>
+        <div class="obstaculos-legenda" id="legenda-obstaculos"></div>
+      </div>
+      <footer class="tela__rodape">
+        <button class="btn btn--primario" data-acao="jogar"><svg><use href="#i-play"/></svg><span>COMEÇAR</span></button>
+        <small class="atalho">ESC = pausar a qualquer momento</small>
+      </footer>
+    </section>
+
+    <!-- ===================== TELA 4 — PAUSA ===================== -->
+    <section class="tela tela-sobreposta" id="tela-pausa" data-tela="pausa" hidden>
+      <div class="painel painel--centro">
+        <h2 class="titulo-tela">PAUSADO</h2>
+        <p class="painel__sub" id="pausa-resumo">Pontos 0 · 0 m</p>
+        <button class="btn btn--secundario" data-acao="continuar"><svg><use href="#i-play"/></svg><span>CONTINUAR</span></button>
+        <button class="btn btn--fantasma" data-acao="reiniciar"><svg><use href="#i-reiniciar"/></svg><span>REINICIAR</span></button>
+        <button class="btn btn--fantasma" data-acao="config"><svg><use href="#i-engrenagem"/></svg><span>CONFIGURAÇÕES</span></button>
+        <button class="btn btn--fantasma" data-acao="menu"><svg><use href="#i-casa"/></svg><span>MENU PRINCIPAL</span></button>
+      </div>
+      <p class="nota-rodape">Obstáculos, cenário e pontuação ficam congelados enquanto o jogo está pausado.</p>
+    </section>
+
+    <!-- ===================== TELA 5 — GAME OVER ===================== -->
+    <section class="tela tela-sobreposta tela-fim" id="tela-fim" data-tela="fim" hidden>
+      <div class="tela-fim__heroi" id="fim-heroi"></div>
+      <div class="selo-recorde" id="fim-novo" hidden>NEW RECORD!</div>
+      <div class="painel tela-fim__painel">
+        <h2 class="titulo-tela">FIM DA CORRIDA!</h2>
+        <p class="painel__sub" id="fim-causa">Você bateu numa barreira.</p>
+        <div class="placar" id="fim-placar">
+          <div><small>PONTUAÇÃO</small><b id="fim-pontos">0</b></div>
+          <span class="selo-badge" id="fim-badge" hidden><svg><use href="#i-trofeu"/></svg>NOVO RECORDE</span>
+        </div>
+        <div class="estat-grade">
+          <div><small><svg style="color:#00D9FF"><use href="#i-bandeira"/></svg>DISTÂNCIA</small><b id="fim-distancia">0 m</b></div>
+          <div><small><svg style="color:#FFD447"><use href="#i-core"/></svg>ENERGIA</small><b id="fim-cores">0</b></div>
+          <div><small><svg style="color:#FF4FBF"><use href="#i-estrela"/></svg>MELHOR COMBO</small><b id="fim-combo">x1</b></div>
+          <div><small><svg style="color:#42EDAA"><use href="#i-trofeu"/></svg>RECORDE</small><b id="fim-recorde">0</b></div>
+        </div>
+        <div class="linha-botoes">
+          <button class="btn btn--primario" data-acao="reiniciar" id="btn-correr"><svg><use href="#i-reiniciar"/></svg><span>CORRER NOVAMENTE</span></button>
+          <button class="btn btn--fantasma" data-acao="menu"><svg><use href="#i-casa"/></svg><span>MENU PRINCIPAL</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== TELA 6 — RECORDES ===================== -->
+    <section class="tela tela-cheia" id="tela-recordes" data-tela="recordes" hidden>
+      <header class="tela__cabecalho">
+        <button class="btn-icone" data-acao="voltar" aria-label="Voltar"><svg><use href="#i-voltar"/></svg></button>
+        <div class="titulo-bloco"><h2 class="titulo-tela">RECORDES</h2><p>Suas estatísticas ficam salvas neste navegador.</p></div>
+        <span class="espaco"></span>
+      </header>
+      <div class="tela__corpo">
+        <div class="cards-estat" id="cards-estat"></div>
+        <div class="tabela" id="tabela-historico"></div>
+      </div>
+      <footer class="tela__rodape"><small class="atalho">Salvo com localStorage · nenhum dado sai do seu dispositivo</small></footer>
+    </section>
+
+    <!-- ===================== TELA 7 — CONFIGURAÇÕES ===================== -->
+    <section class="tela tela-cheia" id="tela-config" data-tela="config" hidden>
+      <header class="tela__cabecalho">
+        <button class="btn-icone" data-acao="voltar" aria-label="Voltar"><svg><use href="#i-voltar"/></svg></button>
+        <h2 class="titulo-tela">CONFIGURAÇÕES</h2>
+        <span class="espaco"></span>
+      </header>
+      <div class="tela__corpo">
+        <div class="painel painel--lista">
+          <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-som"/></svg></span><label for="cfg-efeitos"><b>Volume dos efeitos</b><small>Coleta, colisão, SHIFT</small></label><input type="range" id="cfg-efeitos" class="slider" min="0" max="100" step="5"></div>
+          <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-musica"/></svg></span><label for="cfg-musica-vol"><b>Música</b><small>Trilha eletrônica de fundo</small></label><div class="linha-config__duplo"><input type="range" id="cfg-musica-vol" class="slider" min="0" max="100" step="5" aria-label="Volume da música"><button class="toggle" id="cfg-musica" role="switch" aria-checked="true" aria-label="Música ligada"><i></i></button></div></div>
+          <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-raio"/></svg></span><label><b>Redução de animações</b><small>Menos tremores, flashes e partículas</small></label><button class="toggle" id="cfg-reduzir" role="switch" aria-checked="false" aria-label="Redução de animações"><i></i></button></div>
+          <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-grafico"/></svg></span><label><b>Qualidade gráfica</b><small>Baixa ajuda em celulares mais simples</small></label><div class="segmentado" id="cfg-qualidade" role="radiogroup"><button data-v="baixa" role="radio">BAIXA</button><button data-v="media" role="radio">MÉDIA</button><button data-v="alta" role="radio">ALTA</button></div></div>
+          <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-ajuda"/></svg></span><label><b>Ajuda</b><small>Rever controles e o ZYRO SHIFT</small></label><button class="btn btn--fantasma btn--pequeno" data-acao="como"><span>COMO JOGAR</span></button></div>
+          <div class="linha-config"><span class="linha-config__icone"><svg><use href="#i-lixeira"/></svg></span><label><b>Reiniciar dados locais</b><small>Apaga recordes e estatísticas</small></label><button class="btn btn--perigo btn--pequeno" id="btn-apagar"><svg><use href="#i-lixeira"/></svg><span>APAGAR DADOS</span></button></div>
+        </div>
+      </div>
+      <footer class="tela__rodape"><button class="btn btn--secundario" data-acao="voltar"><svg><use href="#i-check"/></svg><span>SALVAR</span></button></footer>
+    </section>
+
+    <!-- Diálogo de confirmação -->
+    <div class="dialogo" id="dialogo" hidden role="dialog" aria-modal="true" aria-labelledby="dialogo-titulo">
+      <div class="painel painel--centro">
+        <h3 id="dialogo-titulo">Apagar todos os dados?</h3>
+        <p class="painel__sub">Recordes, estatísticas e histórico deste navegador serão apagados. Não dá para desfazer.</p>
+        <div class="linha-botoes">
+          <button class="btn btn--perigo" id="dialogo-sim"><span>APAGAR</span></button>
+          <button class="btn btn--fantasma" id="dialogo-nao"><span>CANCELAR</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="carregando" id="carregando"><span class="logo__simbolo"></span><i></i></div>
+  </div>
+
+  <!-- Módulos (scripts comuns: funciona abrindo o index.html direto, sem servidor) -->
+  <script src="js/config.js"></script>
+  <script src="js/core/utils.js"></script>
+  <script src="js/core/storage.js"></script>
+  <script src="js/core/audio.js"></script>
+  <script src="js/core/input.js"></script>
+  <script src="js/game/lanes.js"></script>
+  <script src="js/game/player.js"></script>
+  <script src="js/game/obstacles.js"></script>
+  <script src="js/game/collision.js"></script>
+  <script src="js/game/collectibles.js"></script>
+  <script src="js/game/score.js"></script>
+  <script src="js/game/shift.js"></script>
+  <script src="js/game/progression.js"></script>
+  <script src="js/game/game.js"></script>
+  <script src="js/render/camera.js"></script>
+  <script src="js/render/sprites.js"></script>
+  <script src="js/render/character.js"></script>
+  <script src="js/render/vehicles.js"></script>
+  <script src="js/render/scenery.js"></script>
+  <script src="js/render/effects.js"></script>
+  <script src="js/render/renderer.js"></script>
+  <script src="js/ui/art.js"></script>
+  <script src="js/ui/hud.js"></script>
+  <script src="js/ui/screens.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
